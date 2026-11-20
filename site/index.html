@@ -1,0 +1,431 @@
+<title>パーク空き日カレンダー</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: 1カラムのスマホ優先。上に操作、真ん中にカレンダー、下に選んだ日の詳細と狙い目リスト */
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --fg: #18203a;
+  --muted: #5d6785;
+  --line: #dfe4ef;
+  --accent: #0d7c8c;
+  --accent-ink: #ffffff;
+  --gold: #b8860b;
+  --lv1: #1f9d6b;
+  --lv2: #7cb342;
+  --lv3: #d9a521;
+  --lv4: #e57a2e;
+  --lv5: #d63f4a;
+  --lv-tint: 18%;
+  --font-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+  --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1422; --surface: #182033; --fg: #e8ecf6; --muted: #9aa5c2; --line: #2a3450;
+    --accent: #3cc0cf; --accent-ink: #062a30; --gold: #e3b341;
+    --lv1: #34c48a; --lv2: #9ccc65; --lv3: #f0c043; --lv4: #f39a52; --lv5: #f06470; --lv-tint: 26%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1422; --surface: #182033; --fg: #e8ecf6; --muted: #9aa5c2; --line: #2a3450;
+  --accent: #3cc0cf; --accent-ink: #062a30; --gold: #e3b341;
+  --lv1: #34c48a; --lv2: #9ccc65; --lv3: #f0c043; --lv4: #f39a52; --lv5: #f06470; --lv-tint: 26%;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: 1.55rem; font-weight: 900; letter-spacing: .01em; line-height: 1.3; }
+h2 { font-size: 1.05rem; font-weight: 700; }
+.sub { color: var(--muted); font-size: .85rem; margin: 4px 0 0; }
+.eyebrow { font-size: .72rem; letter-spacing: .12em; color: var(--accent); font-weight: 700; }
+
+/* パーク切り替え */
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
+.seg button {
+  font: 700 .95rem var(--font-display); border: 0; border-radius: 999px; padding: 10px 8px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* カレンダー */
+.cal { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 10px 12px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 10px; }
+.cal-head h2 { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.nav { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: 1.1rem; cursor: pointer; }
+.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.dow { text-align: center; font-size: .72rem; color: var(--muted); padding-bottom: 2px; font-weight: 700; }
+.dow.sun { color: var(--lv5); } .dow.sat { color: var(--accent); }
+.day {
+  position: relative; aspect-ratio: 1 / 1.08; max-width: 100%; border: 0; border-radius: 10px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  background: color-mix(in srgb, var(--lv) var(--lv-tint), var(--surface));
+  color: var(--fg); font-family: var(--font-body); padding: 0;
+}
+.day .n { font-weight: 700; font-size: .95rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.day .s { font-size: .62rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.day .dot { width: 18px; height: 4px; border-radius: 2px; background: var(--lv); }
+.day.hol .n, .day.sun .n { color: var(--lv5); }
+.day.sat .n { color: var(--accent); }
+.day.past { opacity: .45; }
+.day.past.obs { opacity: .8; }
+.day.obs::after { content: ""; position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--fg); }
+.day.today { box-shadow: inset 0 0 0 2px var(--fg); }
+.day[aria-pressed="true"] { box-shadow: inset 0 0 0 3px var(--gold); }
+.blank { aspect-ratio: 1 / 1.08; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: center; padding-top: 12px; font-size: .72rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend i { width: 12px; height: 12px; border-radius: 4px; background: var(--lv); display: inline-block; }
+
+/* 詳細 */
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.detail-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.date-l { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-weight: 700; font-size: .9rem; background: color-mix(in srgb, var(--lv) 22%, var(--surface)); color: var(--fg); }
+.pill i { width: 10px; height: 10px; border-radius: 50%; background: var(--lv); }
+.meter { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.meter b { display: block; height: 100%; background: var(--lv); border-radius: 5px; }
+.score-row { display: flex; align-items: baseline; gap: 8px; }
+.score-row strong { font-family: var(--font-display); font-size: 2.2rem; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+.score-row span { color: var(--muted); font-size: .85rem; }
+.reasons { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.reasons li { font-size: .78rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.reasons li.up { border-color: color-mix(in srgb, var(--lv5) 45%, var(--line)); color: var(--fg); }
+.reasons li.down { border-color: color-mix(in srgb, var(--lv1) 45%, var(--line)); color: var(--fg); }
+.obs-box { font-size: .85rem; background: var(--bg); border-radius: 12px; padding: 10px 12px; }
+
+/* 狙い目 */
+.picks { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
+.picks ol { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.picks li button {
+  width: 100%; display: grid; grid-template-columns: 1.6rem 1fr auto; align-items: center; gap: 10px;
+  border: 0; background: var(--bg); color: var(--fg); border-radius: 12px; padding: 10px 12px; cursor: pointer; text-align: left;
+  font: 500 .9rem var(--font-body);
+}
+.picks .rank { font-family: var(--font-display); font-weight: 900; color: var(--gold); }
+.picks .v { font-variant-numeric: tabular-nums; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.picks .v i { width: 10px; height: 10px; border-radius: 50%; background: var(--lv); }
+.empty { color: var(--muted); font-size: .85rem; margin: 10px 0 0; }
+
+/* 注記 */
+.notes { font-size: .78rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.notes p { margin: 0; max-width: 65ch; }
+.notes a { color: var(--accent); font-weight: 700; }
+.status { font-size: .75rem; color: var(--muted); }
+
+.lv1 { --lv: var(--lv1); } .lv2 { --lv: var(--lv2); } .lv3 { --lv: var(--lv3); } .lv4 { --lv: var(--lv4); } .lv5 { --lv: var(--lv5); }
+@media (prefers-reduced-motion: no-preference) { .day, .meter b { transition: box-shadow .15s, width .3s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">TOKYO RESORT CROWD FORECAST</div>
+    <h1>パーク空き日カレンダー</h1>
+    <p class="sub">月・曜日・祝日・連休・季節イベントから、空いてそうな日を予想します（非公式）</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="パーク">
+    <button id="park-tdl" type="button" data-park="tdl" aria-pressed="true">ランド</button>
+    <button id="park-tds" type="button" data-park="tds" aria-pressed="false">シー</button>
+  </div>
+
+  <section class="cal" aria-label="カレンダー">
+    <div class="cal-head">
+      <button id="prev" class="nav" type="button" aria-label="前の月">‹</button>
+      <h2 id="month-label"></h2>
+      <button id="next" class="nav" type="button" aria-label="次の月">›</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="detail" id="detail" aria-live="polite"></section>
+
+  <section class="picks">
+    <h2 id="picks-title">この月の狙い目</h2>
+    <ol id="picks"></ol>
+  </section>
+
+  <footer class="notes">
+    <p><b>予想の仕組み：</b>月ごとの混み具合と曜日の傾向を土台に、祝日・連休・春休み・GW・夏休み・年末年始・ハロウィン/クリスマス期間で補正しています。混雑指数は 0〜100 で、大きいほど混みます。</p>
+    <p>現在の土台の数値は、待ち時間統計サイトの公開値（7月・9月が空きやすく11月が最も混む、火曜が最も空き土曜が最も混む）に合わせた仮の値です。実際の待ち時間を毎日集めているので、データが貯まるほど精度を上げていきます。右上に点がある日は、実際に集めた待ち時間データがある日です。</p>
+    <p>イベント期間・休園日・チケット販売状況は年によって変わります。お出かけ前に公式サイトで必ず確認してください。この予想は公式のものではありません。</p>
+    <p>待ち時間データ：<a href="https://queue-times.com/" target="_blank" rel="noopener">Powered by Queue-Times.com</a></p>
+    <p class="status" id="status"></p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- 土台の数値（仮）。混雑度 % 。Queue-Times 公開値: 7月・9月 ≈33, 11月 ≈61 / 火 42, 土 56 ----
+  const MONTH_BASE = {
+    tdl: [50, 44, 57, 52, 47, 40, 33, 45, 33, 52, 61, 58],
+    tds: [50, 44, 57, 52, 48, 41, 35, 46, 35, 52, 60, 57],
+  };
+  // 曜日 (日〜土)。日曜は「翌日が平日の休日」、土曜は「翌日も休みの休日」として使う
+  const DOW = [52, 46, 42, 44, 44, 47, 56];
+  const DOW_MEAN = DOW.reduce((a, b) => a + b) / 7;
+
+  const LEVELS = [
+    { max: 30, name: "激空き", cls: "lv1" },
+    { max: 42, name: "空いてる", cls: "lv2" },
+    { max: 54, name: "ふつう", cls: "lv3" },
+    { max: 66, name: "混雑", cls: "lv4" },
+    { max: 101, name: "激混み", cls: "lv5" },
+  ];
+  const levelOf = (s) => LEVELS.findIndex((l) => s < l.max);
+
+  // ---- 日付ユーティリティ（UTC で日付だけを扱う） ----
+  const D = (y, m, d) => new Date(Date.UTC(y, m, d));
+  const key = (dt) => dt.toISOString().slice(0, 10);
+  const addDays = (dt, n) => D(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate() + n);
+  const jstToday = () => { const t = new Date(Date.now() + 9 * 3600e3); return D(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); };
+  const WD = ["日", "月", "火", "水", "木", "金", "土"];
+
+  // ---- 日本の祝日 ----
+  const holidayCache = {};
+  function nthMonday(y, m, n) {
+    const w = D(y, m, 1).getUTCDay();
+    return D(y, m, 1 + ((8 - w) % 7) + 7 * (n - 1));
+  }
+  function holidays(y) {
+    if (holidayCache[y]) return holidayCache[y];
+    const h = new Map();
+    const add = (dt, name) => h.set(key(dt), name);
+    [[0, 1, "元日"], [1, 11, "建国記念の日"], [1, 23, "天皇誕生日"], [3, 29, "昭和の日"], [4, 3, "憲法記念日"],
+     [4, 4, "みどりの日"], [4, 5, "こどもの日"], [7, 11, "山の日"], [10, 3, "文化の日"], [10, 23, "勤労感謝の日"]]
+      .forEach(([m, d, n]) => add(D(y, m, d), n));
+    add(nthMonday(y, 0, 2), "成人の日");
+    add(nthMonday(y, 6, 3), "海の日");
+    add(nthMonday(y, 8, 3), "敬老の日");
+    add(nthMonday(y, 9, 2), "スポーツの日");
+    const k = y - 1980, leap = Math.floor(k / 4);
+    add(D(y, 2, Math.floor(20.8431 + 0.242194 * k - leap)), "春分の日");
+    add(D(y, 8, Math.floor(23.2488 + 0.242194 * k - leap)), "秋分の日");
+    // 国民の休日（祝日に挟まれた平日）
+    for (const k1 of [...h.keys()]) {
+      const mid = addDays(new Date(k1 + "T00:00:00Z"), 1);
+      if (!h.has(key(mid)) && h.has(key(addDays(mid, 1))) && mid.getUTCDay() !== 0) add(mid, "国民の休日");
+    }
+    // 振替休日
+    for (const k1 of [...h.keys()].sort()) {
+      const dt = new Date(k1 + "T00:00:00Z");
+      if (dt.getUTCDay() !== 0) continue;
+      let s = addDays(dt, 1);
+      while (h.has(key(s))) s = addDays(s, 1);
+      add(s, "振替休日");
+    }
+    holidayCache[y] = h;
+    return h;
+  }
+  const holidayName = (dt) => holidays(dt.getUTCFullYear()).get(key(dt));
+  // 年末年始 (12/29〜1/3) は多くの会社・学校が休みなので休日扱い
+  const isNewYearBreak = (dt) => { const m = dt.getUTCMonth(), d = dt.getUTCDate(); return (m === 11 && d >= 29) || (m === 0 && d <= 3); };
+  const isOff = (dt) => { const w = dt.getUTCDay(); return w === 0 || w === 6 || !!holidayName(dt) || isNewYearBreak(dt); };
+
+  // ---- 季節の期間 [開始月, 開始日, 終了月, 終了日] (月は1始まり) ----
+  const inRange = (dt, m1, d1, m2, d2) => {
+    const v = (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();
+    const a = m1 * 100 + d1, b = m2 * 100 + d2;
+    return a <= b ? v >= a && v <= b : v >= a || v <= b;
+  };
+  const PERIODS = [
+    { name: "年末年始", r: [12, 28, 1, 3], mult: 1.15 },
+    { name: "春休み", r: [3, 20, 4, 6], mult: 1.14, weekdayOnly: true },
+    { name: "GW", r: [4, 29, 5, 5], mult: 1.12 },
+    { name: "夏休み", r: [7, 20, 8, 31], mult: 1.1, weekdayOnly: true },
+    { name: "お盆", r: [8, 10, 8, 16], mult: 1.08 },
+    { name: "ハロウィン期間（目安）", r: [9, 15, 10, 31], mult: 1.05 },
+    { name: "クリスマス期間（目安）", r: [11, 8, 12, 25], mult: 1.05 },
+    { name: "クリスマス当日", r: [12, 24, 12, 25], mult: 1.08 },
+  ];
+
+  function forecast(park, dt) {
+    const reasons = [];
+    const off = isOff(dt), nextOff = isOff(addDays(dt, 1)), prevOff = isOff(addDays(dt, -1));
+    const hol = holidayName(dt);
+    const w = dt.getUTCDay();
+    let dayVal;
+    if (off && nextOff) { dayVal = DOW[6]; reasons.push({ t: hol ? `${hol}・翌日も休み` : "翌日も休み", up: true }); }
+    else if (off) { dayVal = DOW[0]; reasons.push({ t: hol ? `${hol}・翌日は平日` : "翌日は平日", up: true }); }
+    else if (nextOff) { dayVal = DOW[5]; reasons.push({ t: "休みの前日", up: true }); }
+    else { dayVal = DOW[w]; reasons.push({ t: `平日の${WD[w]}曜日`, up: dayVal > DOW_MEAN, down: dayVal < DOW_MEAN }); }
+
+    let s = MONTH_BASE[park][dt.getUTCMonth()] * (dayVal / DOW_MEAN);
+
+    // 3連休以上の中日
+    if (off && nextOff && prevOff) { s *= 1.06; reasons.push({ t: "連休の中日", up: true }); }
+
+    for (const p of PERIODS) {
+      if (!inRange(dt, ...p.r)) continue;
+      if (p.weekdayOnly && off) continue;
+      s *= p.mult;
+      reasons.push({ t: p.name, up: true });
+    }
+    const mb = MONTH_BASE[park][dt.getUTCMonth()];
+    if (mb <= 40) reasons.push({ t: `${dt.getUTCMonth() + 1}月は空きやすい`, down: true });
+    if (mb >= 57) reasons.push({ t: `${dt.getUTCMonth() + 1}月は混みやすい`, up: true });
+
+    const score = Math.max(5, Math.min(100, Math.round(s)));
+    return { score, lv: levelOf(score), reasons };
+  }
+
+  // ---- 実測データ（GitHub Actions が貯めたもの）。無くても動く ----
+  let observed = { tdl: {}, tds: {} };
+  let observedAt = "";
+
+  // ---- 状態 ----
+  const today = jstToday();
+  const prefs = (() => { try { return JSON.parse(localStorage.getItem("crowd-prefs") || "{}"); } catch { return {}; } })();
+  const state = {
+    park: prefs.park === "tds" ? "tds" : "tdl",
+    y: today.getUTCFullYear(),
+    m: today.getUTCMonth(),
+    sel: key(today),
+  };
+  const savePrefs = () => { try { localStorage.setItem("crowd-prefs", JSON.stringify({ park: state.park })); } catch {} };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function renderLegend() {
+    $("legend").innerHTML = LEVELS.map((l) => `<span class="${l.cls}"><i></i>${l.name}</span>`).join("")
+      + `<span>● 実測あり</span>`;
+  }
+
+  function renderCalendar() {
+    const { y, m, park } = state;
+    $("month-label").textContent = `${y}年${m + 1}月`;
+    const first = D(y, m, 1);
+    const days = D(y, m + 1, 0).getUTCDate();
+    let html = WD.map((w, i) => `<div class="dow ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</div>`).join("");
+    for (let i = 0; i < first.getUTCDay(); i++) html += `<div class="blank"></div>`;
+    const todayKey = key(today);
+    for (let d = 1; d <= days; d++) {
+      const dt = D(y, m, d), k = key(dt), f = forecast(park, dt);
+      const cls = ["day", LEVELS[f.lv].cls];
+      const w = dt.getUTCDay();
+      if (holidayName(dt)) cls.push("hol"); else if (w === 0) cls.push("sun"); else if (w === 6) cls.push("sat");
+      if (k < todayKey) cls.push("past");
+      if (k === todayKey) cls.push("today");
+      if (observed[park][k]) cls.push("obs");
+      html += `<button id="d-${k}" type="button" class="${cls.join(" ")}" data-k="${k}" aria-pressed="${k === state.sel}"
+        aria-label="${m + 1}月${d}日 ${LEVELS[f.lv].name} 指数${f.score}"><span class="n">${d}</span><span class="dot"></span><span class="s">${f.score}</span></button>`;
+    }
+    $("grid").innerHTML = html;
+  }
+
+  function renderDetail() {
+    const dt = new Date(state.sel + "T00:00:00Z");
+    const f = forecast(state.park, dt), L = LEVELS[f.lv];
+    const hol = holidayName(dt);
+    const obs = observed[state.park][state.sel];
+    const parkName = state.park === "tdl" ? "ランド" : "シー";
+    $("detail").className = `detail ${L.cls}`;
+    $("detail").innerHTML = `
+      <div class="detail-top">
+        <div class="date-l">${dt.getUTCMonth() + 1}月${dt.getUTCDate()}日（${WD[dt.getUTCDay()]}）${hol ? `<span class="sub"> ${esc(hol)}</span>` : ""}</div>
+        <span class="pill"><i></i>${L.name}</span>
+      </div>
+      <div class="score-row"><strong>${f.score}</strong><span>/ 100 ・ ${parkName}の混雑指数（予想）</span></div>
+      <div class="meter" role="img" aria-label="混雑指数 ${f.score}"><b style="width:${f.score}%"></b></div>
+      <ul class="reasons">${f.reasons.map((r) => `<li class="${r.up ? "up" : r.down ? "down" : ""}">${r.up ? "↑" : r.down ? "↓" : "・"} ${esc(r.t)}</li>`).join("")}</ul>
+      ${obs ? `<div class="obs-box">実測：運営中アトラクションの平均待ち <b>${obs.avg}分</b>（ピーク時 ${obs.peak}分・${obs.n}回計測、10〜20時）</div>` : ""}`;
+  }
+
+  function renderPicks() {
+    const { y, m, park } = state;
+    const days = D(y, m + 1, 0).getUTCDate();
+    const list = [];
+    for (let d = 1; d <= days; d++) {
+      const dt = D(y, m, d);
+      if (dt < today) continue;
+      list.push({ dt, f: forecast(park, dt) });
+    }
+    list.sort((a, b) => a.f.score - b.f.score || a.dt - b.dt);
+    $("picks-title").textContent = `${m + 1}月の狙い目 TOP5`;
+    if (!list.length) { $("picks").innerHTML = `<p class="empty">この月はもう終わっちゃった。次の月を見てね。</p>`; return; }
+    $("picks").innerHTML = list.slice(0, 5).map((x, i) => {
+      const L = LEVELS[x.f.lv], k = key(x.dt), hol = holidayName(x.dt);
+      return `<li><button id="pick-${k}" type="button" data-k="${k}"><span class="rank">${i + 1}</span>
+        <span>${x.dt.getUTCMonth() + 1}/${x.dt.getUTCDate()}（${WD[x.dt.getUTCDay()]}）${hol ? " " + esc(hol) : ""}</span>
+        <span class="v ${L.cls}"><i></i>${L.name} ${x.f.score}</span></button></li>`;
+    }).join("");
+  }
+
+  function renderPark() {
+    document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.park === state.park)));
+  }
+  function renderStatus() {
+    const n = Object.keys(observed.tdl).length + Object.keys(observed.tds).length;
+    $("status").textContent = n ? `実測データ：${n}日分（最終更新 ${observedAt.replace("T", " ")} JST）` : "実測データ：まだありません（収集を始めたばかりです）";
+  }
+  function renderAll() { renderPark(); renderCalendar(); renderDetail(); renderPicks(); renderStatus(); }
+
+  // ---- 操作 ----
+  document.querySelector(".seg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-park]"); if (!b) return;
+    state.park = b.dataset.park; savePrefs(); renderAll();
+  });
+  const select = (k) => {
+    state.sel = k;
+    const dt = new Date(k + "T00:00:00Z");
+    state.y = dt.getUTCFullYear(); state.m = dt.getUTCMonth();
+    renderCalendar(); renderDetail();
+  };
+  $("grid").addEventListener("click", (e) => { const b = e.target.closest("button[data-k]"); if (b) select(b.dataset.k); });
+  $("picks").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-k]"); if (!b) return;
+    select(b.dataset.k); $("detail").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  const moveMonth = (n) => {
+    const dt = D(state.y, state.m + n, 1);
+    state.y = dt.getUTCFullYear(); state.m = dt.getUTCMonth();
+    // 選択日をその月の「今日以降で最初の日」に
+    const first = dt < today && today.getUTCMonth() === state.m && today.getUTCFullYear() === state.y ? today : dt;
+    state.sel = key(first);
+    renderCalendar(); renderDetail(); renderPicks();
+  };
+  $("prev").addEventListener("click", () => moveMonth(-1));
+  $("next").addEventListener("click", () => moveMonth(1));
+
+  renderLegend();
+  renderAll();
+
+  fetch("data/observed.json", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      if (!j || !j.parks) return;
+      observed = { tdl: j.parks.tdl || {}, tds: j.parks.tds || {} };
+      observedAt = j.generated_at || "";
+      renderAll();
+    })
+    .catch(() => {});
+})();
+</script>
