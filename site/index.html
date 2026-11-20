@@ -93,6 +93,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .day.actual .dot { height: 6px; width: 22px; }
 .day.actual .s { color: var(--fg); font-weight: 700; }
 .day.nodata { opacity: .4; }
+.day .wx { position: absolute; top: 2px; left: 4px; font-size: .62rem; line-height: 1; }
 .day.today { box-shadow: inset 0 0 0 2px var(--fg); }
 .day[aria-pressed="true"] { box-shadow: inset 0 0 0 3px var(--gold); }
 .blank { aspect-ratio: 1 / 1.08; }
@@ -211,17 +212,25 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
         <ul><li>祝日法のルール（振替休日・国民の休日を含む）で計算しています</li></ul>
       </section>
       <section>
+        <h3><span class="badge ok">実データ</span>天気の実績と予報</h3>
+        <ul>
+          <li>Open-Meteo の舞浜地点のデータ。営業時間帯（9〜21時）の雨の時間・雨量・最高気温を使います</li>
+          <li>予報は7日先まで使い、先の日ほど影響を弱めています。8日以上先は平年並みの天気として予想します</li>
+        </ul>
+      </section>
+      <section>
         <h3><span class="badge mid">データから推定</span>各要因の影響の大きさ</h3>
         <ul>
           <li>月・曜日の種類・連休・季節の期間ごとに「何ポイント混むか」を、過去の実績から回帰分析で求めています</li>
           <li>今年の全体の混み具合は、今年これまでの実績から推定しています</li>
+          <li>天気（雨の時間・大雨・猛暑・寒さ）の影響も、過去の天気の実績と混雑度から求めています</li>
         </ul>
       </section>
       <section>
         <h3><span class="badge ng">目安</span>入っていないもの・おおよそのもの</h3>
         <ul>
           <li>ハロウィン・クリスマスなどの期間は毎年の目安の日付で、その年の正式な期間ではありません</li>
-          <li>天気・チケットの売れ行き・新アトラクション・休園日は予想に入っていません。雨の日は大きく空くことがあります</li>
+          <li>チケットの売れ行き・新アトラクション・休園日は予想に入っていません</li>
         </ul>
       </section>
     </div>
@@ -230,7 +239,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   <footer class="notes">
     <p>混雑の5段階は、そのパークの最近1年の実績を5等分した区切りです（例：「激空き」＝最近1年で空いていた方から2割の日の水準）。</p>
     <p>イベント期間・休園日・チケット販売状況は、お出かけ前に必ず公式サイトで確認してください。この予想は公式のものではありません。</p>
-    <p>データ：<a href="https://queue-times.com/" target="_blank" rel="noopener">Powered by Queue-Times.com</a></p>
+    <p>データ：<a href="https://queue-times.com/" target="_blank" rel="noopener">Powered by Queue-Times.com</a> ／ 天気：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a>（CC BY 4.0）</p>
     <p id="status"></p>
   </footer>
 </div>
@@ -244,7 +253,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   const LEVEL_NAMES = ["激空き", "空いてる", "ふつう", "混雑", "激混み"];
   const PARK_NAMES = { tdl: "ランド", tds: "シー" };
 
-  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} };
+  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} }, weather = {};
 
   const jstToday = () => { const t = new Date(Date.now() + 9 * 3600e3); return D(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); };
   const today = jstToday(), todayKey = key(today);
@@ -260,15 +269,37 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 
   function dayInfo(dt) {
     const k = key(dt);
-    const pred = M.predict(P(), dt);
+    const wx = weather[k] || null;
+    const lead = Math.round((dt - today) / 864e5);
+    const wxWeight = !wx ? 0 : wx.f ? M.forecastWeight(lead) : 1;
+    const pred = M.predict(P(), dt, wx, wxWeight);
     const actual = history[state.park][k];
     const shown = actual != null ? actual : pred.score;
-    return { k, pred, actual, shown, lv: levelOf(shown), past: k < todayKey };
+    return { k, pred, actual, shown, lv: levelOf(shown), past: k < todayKey, wx, wxWeight, lead };
   }
 
   function renderLegend() {
     $("legend").innerHTML = LEVEL_NAMES.map((n, i) => `<span class="${cls(i)}"><i></i>${n}</span>`).join("")
-      + `<span class="kind">濃い色・太字の数字＝実績 ／ 薄い色＝予想</span>`;
+      + `<span class="kind">濃い色・太字の数字＝実績 ／ 薄い色＝予想 ／ ☂＝雨 ☀＝猛暑</span>`;
+  }
+
+  // 雨の時間が多い日（予報は降水確率も見る）に傘、猛暑日に太陽
+  function wxGlyph(wx) {
+    if (!wx) return "";
+    if (wx.h >= 3 || (wx.f && (wx.p || 0) >= 60 && wx.h >= 1)) return `<span class="wx" aria-hidden="true">☂</span>`;
+    if (wx.t >= M.HOT_C) return `<span class="wx" aria-hidden="true">☀</span>`;
+    return "";
+  }
+  function weatherBox(x) {
+    if (!x.wx) {
+      return x.past ? "" : `<div class="box">天気予報はまだ使っていません（7日より先の日は平年並みとして予想）。</div>`;
+    }
+    const w = x.wx;
+    const desc = `雨 ${w.h}時間・${w.r}mm、最高 ${w.t}℃${w.p != null ? `、降水確率 ${w.p}%` : ""}（9〜21時）`;
+    if (!w.f) return `<div class="box"><b>天気（実績）</b>　${desc}</div>`;
+    const note = x.wxWeight === 0 ? "予報が先すぎるので、予想には使っていません。"
+      : x.wxWeight < 1 ? `先の予報は外れやすいので、天気の影響を${Math.round(x.wxWeight * 10)}割に弱めて計算しています。` : "";
+    return `<div class="box"><b>天気予報（${x.lead === 0 ? "今日" : x.lead + "日先"}）</b>　${desc}${note ? `<br><span class="sub">${note}</span>` : ""}</div>`;
   }
 
   function renderCalendar() {
@@ -284,7 +315,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       if (x.actual != null) c.push("actual"); else if (x.past) c.push("nodata");
       if (x.k === todayKey) c.push("today");
       const label = `${m + 1}月${d}日 ${LEVEL_NAMES[x.lv]} ${x.actual != null ? "実績" : "予想"}${x.shown}`;
-      html += `<button id="d-${x.k}" type="button" class="${c.join(" ")}" data-k="${x.k}" aria-pressed="${x.k === state.sel}" aria-label="${label}"><span class="n">${d}</span><span class="dot"></span><span class="s">${x.shown}</span></button>`;
+      html += `<button id="d-${x.k}" type="button" class="${c.join(" ")}" data-k="${x.k}" aria-pressed="${x.k === state.sel}" aria-label="${label}">${wxGlyph(x.wx)}<span class="n">${d}</span><span class="dot"></span><span class="s">${x.shown}</span></button>`;
     }
     $("grid").innerHTML = html;
   }
@@ -318,6 +349,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
         <div class="scale"><div class="range" style="left:${lo}%;width:${hi - lo}%"></div><div class="mark" style="left:${x.pred.score}%"></div></div>
         <div class="scale-l"><span>0</span><span>帯＝過去の平均的なズレ（±${mae}）</span><span>100</span></div>
         ${x.past ? `<div class="box">この日の実績データはまだありません。</div>` : ""}`}
+      ${weatherBox(x)}
       <ul class="parts" aria-label="予想の内訳">${rows}</ul>
       ${obs ? `<div class="box">自前の計測：運営中アトラクションの平均待ち <b>${obs.avg}分</b>（ピーク ${obs.peak}分・${obs.n}回計測、10〜20時）</div>` : ""}`;
   }
@@ -341,7 +373,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   }
 
   function renderAccuracy() {
-    const v = P().validation, f = (s) => s.slice(0, 4) + "年" + Number(s.slice(5, 7)) + "月" + Number(s.slice(8, 10)) + "日";
+    const v = P().validation, vw = P().validationWeather, f = (s) => s.slice(0, 4) + "年" + Number(s.slice(5, 7)) + "月" + Number(s.slice(8, 10)) + "日";
     $("acc-body").innerHTML = `
       <p class="prose">${PARK_NAMES[state.park]}について、<b>2025年までのデータだけ</b>で作った予想を、${f(v.from)}〜${f(v.to)}（${v.n}日）の実績と比べたテストの結果です。</p>
       <div class="stats">
@@ -349,6 +381,13 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
         <div class="stat"><b>${Math.round(v.levelWithin1 * 100)}%</b><span>5段階で±1段階以内に当たった日</span></div>
         <div class="stat"><b>${v.quietPrecision != null ? Math.round(v.quietPrecision * 100) + "%" : "—"}</b><span>「空き」予想の日が本当に空いていた割合</span></div>
       </div>
+      ${vw ? `<h3 style="margin-top:14px">その日の天気が分かっていた場合</h3>
+      <div class="stats">
+        <div class="stat"><b>±${vw.mae}</b><span>平均のズレ（ポイント）</span></div>
+        <div class="stat"><b>${Math.round(vw.levelWithin1 * 100)}%</b><span>5段階で±1段階以内</span></div>
+        <div class="stat"><b>${vw.quietPrecision != null ? Math.round(vw.quietPrecision * 100) + "%" : "—"}</b><span>「空き」予想の的中率</span></div>
+      </div>
+      <p class="prose">上は天気の<b>実績</b>を使った場合なので、予報を使う直近の予想の「いちばん良くてこのくらい」という目安です。予報が外れればその分ズレます。</p>` : ""}
       <p class="prose">当てずっぽうなら「空き」予想の当たりは約40%です。<b>傾向はつかめているけれど、日ごとのブレは大きい</b>というのが正直なところです。天気やチケットの売れ行きで大きく動くので、「この日は絶対空いてる」という使い方ではなく、<b>候補日を比べる目安</b>として使ってください。</p>`;
   }
 
@@ -382,9 +421,10 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   renderLegend();
 
   const getJSON = (u) => fetch(u, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(u))));
-  Promise.all([getJSON("data/model.json"), getJSON("data/history.json").catch(() => null), getJSON("data/observed.json").catch(() => null)])
-    .then(([m, h, o]) => {
+  Promise.all([getJSON("data/model.json"), getJSON("data/history.json").catch(() => null), getJSON("data/observed.json").catch(() => null), getJSON("data/weather.json").catch(() => null)])
+    .then(([m, h, o, w]) => {
       model = m;
+      if (w && w.days) weather = w.days;
       if (h) history = { tdl: h.tdl || {}, tds: h.tds || {} };
       if (o && o.parks) observed = { tdl: o.parks.tdl || {}, tds: o.parks.tds || {} };
       renderAll();

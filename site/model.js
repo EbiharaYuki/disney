@@ -71,18 +71,37 @@
   // 水曜（翌日も平日の水曜）を曜日の基準にする
   const DAY_IDS = ["d_offoff", "d_offwork", "d_workoff", "d_mon", "d_tue", "d_thu"];
   const YEAR_IDS = ["y_2024", "y_2025", "y_2026"]; // 2023 が基準
-  const FEATURES = [...MONTH_IDS, ...DAY_IDS, "d_renkyu_mid", "d_renkyu_last", ...PERIODS.map((p) => p.id), ...YEAR_IDS];
+  // 天気は「その月の平年との差」で入れる。天気が分からない日は 0（＝平年並み）になる
+  const WEATHER_IDS = ["w_rain_hours", "w_rain_hours_off", "w_heavy", "w_hot", "w_cold"];
+  const FEATURES = [...MONTH_IDS, ...DAY_IDS, "d_renkyu_mid", "d_renkyu_last", ...PERIODS.map((p) => p.id), ...YEAR_IDS, ...WEATHER_IDS];
+
+  const HEAVY_MM = 10, HOT_C = 32, COLD_C = 8;
+  /** 天気の日別データ [{r: 雨量mm, h: 雨の時間数, t: 最高気温}] から月ごとの平年値を作る */
+  function climatology(days) {
+    const acc = Array.from({ length: 12 }, () => ({ n: 0, h: 0, heavy: 0, hot: 0, cold: 0 }));
+    for (const [k, w] of Object.entries(days)) {
+      const a = acc[Number(k.slice(5, 7)) - 1];
+      a.n++; a.h += w.h; a.heavy += w.r >= HEAVY_MM ? 1 : 0; a.hot += w.t >= HOT_C ? 1 : 0; a.cold += w.t <= COLD_C ? 1 : 0;
+    }
+    return acc.map((a) => (a.n ? { h: +(a.h / a.n).toFixed(3), heavy: +(a.heavy / a.n).toFixed(3), hot: +(a.hot / a.n).toFixed(3), cold: +(a.cold / a.n).toFixed(3) } : { h: 0, heavy: 0, hot: 0, cold: 0 }));
+  }
+  /** 予報の信頼度: 先の日ほど平年値に寄せる（lead = 何日先か） */
+  const forecastWeight = (lead) => (lead <= 2 ? 1 : lead <= 4 ? 0.7 : lead <= 7 ? 0.4 : 0);
 
   const LABELS = {
     d_offoff: "休日で翌日も休み", d_offwork: "休日で翌日は平日", d_workoff: "休みの前日",
     d_mon: "平日の月曜", d_tue: "平日の火曜", d_thu: "平日の木曜",
     d_renkyu_mid: "連休の中日", d_renkyu_last: "連休の最終日",
+    w_rain_hours: "雨の時間（平年との差）", w_rain_hours_off: "休日の雨（平年との差）",
+    w_heavy: "大雨", w_hot: "猛暑（32℃以上）", w_cold: "寒い（8℃以下）",
   };
   PERIODS.forEach((p) => (LABELS[p.id] = p.name));
   MONTH_IDS.forEach((id, i) => (LABELS[id] = `${i + 1}月`));
 
-  /** 日付 → { 特徴量id: 値 }（0 の特徴量は省略）。yearLevel は年の特徴量に使う年（未来日は最新年を渡す） */
-  function features(dt, yearLevel) {
+  /** 日付 → { 特徴量id: 値 }（0 の特徴量は省略）。
+   *  yearLevel: 年の特徴量に使う年（未来日は最新年を渡す）
+   *  wx: その日の天気 {r, h, t}（無ければ null）、clim: 月ごとの平年値、weight: 天気の信頼度 0〜1 */
+  function features(dt, yearLevel, wx, clim, weight = 1) {
     const f = {};
     f[MONTH_IDS[dt.getUTCMonth()]] = 1;
     const off = isOff(dt), nextOff = isOff(addDays(dt, 1)), prevOff = isOff(addDays(dt, -1));
@@ -103,13 +122,23 @@
     const y = yearLevel || dt.getUTCFullYear();
     const yid = `y_${Math.min(y, 2026)}`;
     if (YEAR_IDS.includes(yid)) f[yid] = 1;
+    if (wx && clim && weight > 0) {
+      const c = clim[dt.getUTCMonth()];
+      const put = (id, v) => { if (Math.abs(v) > 1e-9) f[id] = weight * v; };
+      put("w_rain_hours", wx.h - c.h);
+      if (off) put("w_rain_hours_off", wx.h - c.h);
+      put("w_heavy", (wx.r >= HEAVY_MM ? 1 : 0) - c.heavy);
+      put("w_hot", (wx.t >= HOT_C ? 1 : 0) - c.hot);
+      put("w_cold", (wx.t <= COLD_C ? 1 : 0) - c.cold);
+    }
     return f;
   }
 
-  /** model = { coefs: {id: number}, latestYear } → { score, parts: [{id, label, value}] } */
-  function predict(model, dt) {
+  /** model = { coefs, latestYear, clim } → { score, parts: [{id, label, value}] }
+   *  wx: その日の天気（実績か予報）、weight: 天気の信頼度（実績なら 1） */
+  function predict(model, dt, wx, weight = 1) {
     const y = Math.min(dt.getUTCFullYear(), model.latestYear || dt.getUTCFullYear());
-    const f = features(dt, y);
+    const f = features(dt, y, wx, model.clim, weight);
     let s = 0;
     const parts = [];
     for (const id in f) {
@@ -120,5 +149,5 @@
     return { score: Math.max(0, Math.min(100, Math.round(s))), parts };
   }
 
-  root.CrowdModel = { D, key, parse, addDays, WD, holidays, holidayName, isOff, features, predict, FEATURES, LABELS, MONTH_IDS };
+  root.CrowdModel = { D, key, parse, addDays, WD, holidays, holidayName, isOff, features, predict, climatology, forecastWeight, FEATURES, LABELS, MONTH_IDS, HEAVY_MM, HOT_C, COLD_C };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -14,6 +14,12 @@ const M = globalThis.CrowdModel;
 
 const ROOT = path.resolve(__dirname, "..");
 const TEST_START = "2026-01-01";
+const WX_PATH = path.join(ROOT, "site/data/weather.json");
+// 天気の実績（予報は学習に使わない）
+const WX = fs.existsSync(WX_PATH)
+  ? Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(WX_PATH, "utf8")).days).filter(([, w]) => !w.f))
+  : {};
+const climFrom = (until) => (Object.keys(WX).length ? M.climatology(Object.fromEntries(Object.entries(WX).filter(([k]) => k < until))) : null);
 const RIDGE = 0.5;
 
 function readHistory(park) {
@@ -27,11 +33,11 @@ function readHistory(park) {
 }
 
 // (XᵀX + λI) β = Xᵀy をガウスの消去法で解く
-function fit(rows, latestYear) {
+function fit(rows, latestYear, clim) {
   const F = M.FEATURES, n = F.length, idx = Object.fromEntries(F.map((f, i) => [f, i]));
   const A = Array.from({ length: n }, () => new Float64Array(n + 1));
   for (const r of rows) {
-    const f = M.features(M.parse(r.date));
+    const f = M.features(M.parse(r.date), undefined, WX[r.date], clim);
     const ids = Object.keys(f).map((k) => idx[k]);
     for (const i of ids) {
       for (const j of ids) A[i][j] += f[F[i]] * f[F[j]];
@@ -51,7 +57,7 @@ function fit(rows, latestYear) {
   }
   const coefs = {};
   F.forEach((f, i) => (coefs[f] = Math.round((A[i][n] / A[i][i]) * 100) / 100));
-  return { coefs, latestYear };
+  return { coefs, latestYear, clim };
 }
 
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
@@ -64,8 +70,8 @@ function corr(a, b) {
 const quantile = (arr, q) => { const s = [...arr].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
 const levelOf = (v, th) => th.findIndex((t) => v < t) === -1 ? th.length : th.findIndex((t) => v < t);
 
-function evaluate(model, rows, thresholds) {
-  const pred = rows.map((r) => M.predict(model, M.parse(r.date)).score);
+function evaluate(model, rows, thresholds, useWeather) {
+  const pred = rows.map((r) => M.predict(model, M.parse(r.date), useWeather ? WX[r.date] : null).score);
   const act = rows.map((r) => r.crowd);
   const err = pred.map((p, i) => Math.abs(p - act[i]));
   const lvP = pred.map((p) => levelOf(p, thresholds)), lvA = act.map((a) => levelOf(a, thresholds));
@@ -101,20 +107,21 @@ for (const park of ["tdl", "tds"]) {
   const thresholds = [0.2, 0.4, 0.6, 0.8].map((q) => quantile(recent, q));
 
   const train = rows.filter((r) => r.date < TEST_START), test = rows.filter((r) => r.date >= TEST_START);
-  const valModel = fit(train, latestYear - 1);
-  const validation = evaluate(valModel, test, thresholds);
+  const valModel = fit(train, latestYear - 1, climFrom(TEST_START));
+  const validation = evaluate(valModel, test, thresholds, false);
+  const validationWeather = valModel.clim ? evaluate(valModel, test, thresholds, true) : null;
   const nv = naive(train);
   const naiveErr = mean(test.map((r) => Math.abs(nv(r) - r.crowd)));
   validation.maeNaive = +naiveErr.toFixed(1);
 
-  const model = fit(rows, latestYear);
-  const fitAll = evaluate(model, rows, thresholds);
-  out.parks[park] = { ...model, thresholds, validation, fitAll, trained: { from: rows[0].date, to: last, n: rows.length } };
+  const model = fit(rows, latestYear, climFrom("9999"));
+  const fitAll = evaluate(model, rows, thresholds, true);
+  out.parks[park] = { ...model, thresholds, validation, validationWeather, fitAll, trained: { from: rows[0].date, to: last, n: rows.length } };
 
   history[park] = Object.fromEntries(rows.map((r) => [r.date, r.crowd]));
-  console.log(park, JSON.stringify({ thresholds, validation, fitAllMae: fitAll.mae }));
+  console.log(park, JSON.stringify({ thresholds, validation, validationWeather, fitAllMae: fitAll.mae }));
 }
 fs.mkdirSync(path.join(ROOT, "site/data"), { recursive: true });
 fs.writeFileSync(path.join(ROOT, "site/data/model.json"), JSON.stringify(out, null, 1));
 fs.writeFileSync(path.join(ROOT, "site/data/history.json"), JSON.stringify(history));
-console.log(JSON.stringify(out.parks.tdl.coefs));
+for (const p of ["tdl", "tds"]) console.log(p, "weather coefs", JSON.stringify(Object.fromEntries(Object.entries(out.parks[p].coefs).filter(([k]) => k.startsWith("w_")))));

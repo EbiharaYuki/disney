@@ -7,8 +7,10 @@ on:
       - "scripts/**"
       - ".github/workflows/pages.yml"
   schedule:
-    # 毎日 JST 22:30：前日までの混雑実績を取り込み、モデルを学習し直して再公開
+    # 毎日 JST 22:30：前日までの混雑実績と天気を取り込み、モデルを学習し直して再公開
     - cron: "30 13 * * *"
+    # 毎朝 JST 6:30：天気予報を新しくする
+    - cron: "30 21 * * *"
   workflow_dispatch:
 
 permissions:
@@ -32,6 +34,10 @@ jobs:
       - name: Fetch daily crowd history (current and previous month only)
         run: python3 scripts/fetch_history.py
 
+      - name: Fetch weather (actuals and forecast)
+        continue-on-error: true
+        run: python3 scripts/fetch_weather.py
+
       - name: Fit model and validate
         run: node scripts/fit_model.js
 
@@ -42,7 +48,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/history site/data
+          git add data/history data/weather site/data
           if ! git diff --cached --quiet; then
             git commit -m "data: crowd history and model $(TZ=Asia/Tokyo date +'%Y-%m-%d')"
             for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done
