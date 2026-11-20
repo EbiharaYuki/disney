@@ -2,7 +2,8 @@
 
 入力:
   data/factors/events.csv   手入力の出来事（グッズ発売日・オープン日・イベント期間・時短営業など）
-  data/history/{tdl,tds}.csv Queue-Times の記録（イベント絵文字・営業時間）から過去のイベント期間と時短営業を自動抽出
+  data/history/{tdl,tds}.csv, {tdl,tds}_future.csv
+      Queue-Times の記録と今後の公式カレンダー（イベント絵文字・営業時間）からイベント期間と時短営業を自動抽出
 
 出力 (site/data/events.json):
   {"parks": {"tdl": {"tags": {"YYYY-MM-DD": ["event_first", ...]}, "periods": [...]}, "tds": {...}}}
@@ -38,7 +39,9 @@ def read_csv(path: Path) -> list[dict]:
 
 
 def derive_from_history(park: str):
-    rows = read_csv(ROOT / "data" / "history" / f"{park}.csv")
+    # 過去の実績 ＋ 今日以降の公式カレンダー（営業時間・イベント期間）
+    rows = read_csv(ROOT / "data" / "history" / f"{park}.csv") + read_csv(ROOT / "data" / "history" / f"{park}_future.csv")
+    rows.sort(key=lambda r: r["date"])
     last_day = rows[-1]["date"] if rows else ""
     by_emoji = defaultdict(list)
     short = []

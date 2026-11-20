@@ -12,8 +12,9 @@ jobs:
     steps:
       - name: Wayback coverage
         run: |
+          set +e
           for pat in ticket/index tdl/ticket/index tds/ticket/index ticket/sales_status en/ticket/index en/tdl/ticket/index en/tds/ticket/index; do
-            n=$(curl -s --max-time 60 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/$pat/*&filter=statuscode:200&collapse=urlkey&fl=original" | grep -c "20[0-9][0-9]")
+            n=$(curl -s --max-time 60 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/$pat/*&filter=statuscode:200&collapse=urlkey&fl=original" | grep -c "20[0-9][0-9]" || true)
             echo "== $pat: $n months"
             curl -s --max-time 60 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/$pat/*&filter=statuscode:200&collapse=urlkey&fl=timestamp,original" | grep -oE "[0-9]{14} .*/(20[0-9]{4})" | awk '{print substr($1,1,8), $2}' | sed -E 's#https?://www.tokyodisneyresort.jp/##' | tr '\n' ';' | head -c 3000; echo
           done

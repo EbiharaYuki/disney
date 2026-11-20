@@ -1,7 +1,9 @@
 """Queue-Times.com の混雑カレンダーから、過去の日別混雑度を取得する。
 
-出力: data/history/{tdl,tds}.csv
+出力: data/history/{tdl,tds}.csv          過去の日別実績
   date, crowd (0-100 %), hours (営業時間), event (イベント絵文字), holiday (祝日マーク 0/1)
+      data/history/{tdl,tds}_future.csv   今日以降（今月＋3か月先）: 公式の営業時間・イベント期間と Queue-Times の混雑予想
+      data/history/qt_forecast_log.csv    Queue-Times の予想の記録（あとでこのサイトの予想と精度を比べるため）
 
 サーバー負荷を避けるため 1 リクエストごとに 2 秒待つ。既に取得済みの「過去の月」は取り直さない。
 データ提供: Powered by Queue-Times.com (https://queue-times.com/)
@@ -22,6 +24,8 @@ JST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / "data" / "history"
 FIELDS = ["date", "crowd", "hours", "event", "holiday"]
+FUTURE_FIELDS = ["date", "qt_forecast", "hours", "event"]
+FUTURE_MONTHS = 3
 
 DAY_RE = re.compile(r'<a class="box[^"]*calendar-day"[^>]*href="[^"]*/calendar/(\d{4})/(\d{2})/(\d{2})"[^>]*>(.*?)</a>', re.S)
 EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF☀-➿]")
@@ -53,8 +57,8 @@ def parse_month(page: str) -> list[dict]:
     return rows
 
 
-def months(until: datetime):
-    y, m = START
+def months(until: datetime, start=START):
+    y, m = start
     while (y, m) <= (until.year, until.month):
         yield y, m
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
@@ -98,6 +102,35 @@ def main() -> int:
             for k in sorted(existing):
                 w.writerow({fld: existing[k][fld] for fld in FIELDS})
         print(f"{park}: {len(existing)} days total -> {path.relative_to(ROOT)}")
+
+        # 今日以降: 営業時間・イベント期間・Queue-Times の予想
+        future: dict[str, dict] = {}
+        end = today.replace(day=1) + timedelta(days=32 * FUTURE_MONTHS)
+        for y, m in months(end, (today.year, today.month)):
+            url = f"https://queue-times.com/en-US/parks/{pid}/calendar/{y}/{m:02d}"
+            try:
+                for r in parse_month(fetch(url)):
+                    if r["date"] >= today_s and r["date"][:7] == f"{y}-{m:02d}":
+                        future[r["date"]] = {"date": r["date"], "qt_forecast": r["crowd"], "hours": r["hours"], "event": r["event"]}
+            except Exception as e:
+                print(f"{park} future {y}-{m:02d}: failed ({e})", file=sys.stderr)
+            time.sleep(2)
+        if future:
+            fpath = OUT_DIR / f"{park}_future.csv"
+            with fpath.open("w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=FUTURE_FIELDS)
+                w.writeheader()
+                for k in sorted(future):
+                    w.writerow(future[k])
+            log = OUT_DIR / "qt_forecast_log.csv"
+            new = not log.exists()
+            with log.open("a", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                if new:
+                    w.writerow(["fetched_date", "park", "date", "qt_forecast"])
+                for k in sorted(future):
+                    w.writerow([today_s, park, k, future[k]["qt_forecast"]])
+            print(f"{park}: {len(future)} future days -> {fpath.relative_to(ROOT)}")
     return 0
 
 
