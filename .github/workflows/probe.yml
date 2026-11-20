@@ -10,21 +10,21 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch samples
+      - name: Wayback coverage
         run: |
-          UA="Mozilla/5.0 (compatible; tdr-crowd-simulator/1.0; personal non-commercial)"
-          echo "===== ip"; curl -s --max-time 10 https://api.ipify.org; echo
-          echo "===== robots.txt"; curl -s --max-time 40 -A "$UA" https://www.tokyodisneyresort.jp/robots.txt | head -40
-          for u in \
-            https://www.tokyodisneyresort.jp/tdl/ticket/index/202612/ \
-            https://www.tokyodisneyresort.jp/ticket/sales_status/202612/ \
-            https://www.tokyodisneyresort.jp/tdl/monthly/calendar/202612/ ; do
-            echo "===== $u"
-            curl -s --max-time 40 -L -A "$UA" -o p.html -w "code=%{http_code} size=%{size_download}\n" "$u"
-            grep -o -E '(9:00|8:45|10:00)[^<]{0,20}|[0-9]{1,2},?[0-9]{3}円|data-[a-z-]*price[^ >]*|"price[^"]*":[^,]{0,20}|class="[^"]*(price|calendar|day)[^"]*"' p.html | sort | uniq -c | sort -rn | head -25
-            grep -o -E '<script[^>]*src="[^"]*"' p.html | head -10
-            grep -o -E '/[a-zA-Z0-9_/.-]*(api|json|calendar|price)[a-zA-Z0-9_/.?=-]*' p.html | sort -u | head -20
+          for pat in ticket/index tdl/ticket/index tds/ticket/index ticket/sales_status en/ticket/index en/tdl/ticket/index en/tds/ticket/index; do
+            n=$(curl -s --max-time 60 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/$pat/*&filter=statuscode:200&collapse=urlkey&fl=original" | grep -c "20[0-9][0-9]")
+            echo "== $pat: $n months"
+            curl -s --max-time 60 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/$pat/*&filter=statuscode:200&collapse=urlkey&fl=timestamp,original" | grep -oE "[0-9]{14} .*/(20[0-9]{4})" | awk '{print substr($1,1,8), $2}' | sed -E 's#https?://www.tokyodisneyresort.jp/##' | tr '\n' ';' | head -c 3000; echo
           done
-          echo "===== wayback CDX sample"
-          curl -s --max-time 40 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/ticket/sales_status/2024*&output=json&limit=20&filter=statuscode:200&collapse=urlkey" | head -40
-          curl -s --max-time 40 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/tdl/ticket/index/2025*&output=json&limit=20&filter=statuscode:200&collapse=urlkey" | head -30
+      - name: Sample snapshot structure
+        run: |
+          curl -s --max-time 60 -o s.html "https://web.archive.org/web/20251016095354id_/https://www.tokyodisneyresort.jp/tdl/ticket/index/202511/"
+          wc -c s.html
+          grep -n -E "円|price|Price|calendar" s.html | head -30
+          python3 - <<'PY'
+          import re
+          t=open('s.html',encoding='utf-8',errors='replace').read()
+          i=t.find('7,900'); i = i if i>=0 else t.find('9,900')
+          print(t[max(0,i-1500):i+800])
+          PY
