@@ -27,6 +27,7 @@ DONE = ROOT / "data" / "official" / "captures_done.txt"
 PATTERNS = ["ticket/index", "tdl/ticket/index", "tds/ticket/index", "en/ticket/index", "en/tdl/ticket/index", "en/tds/ticket/index"]
 FROM_MONTH = "202301"
 FIELDS = ["date", "park", "price", "open", "close", "captured"]
+MAX_CAPTURES = 120  # 1回の実行で読むページ数の上限（残りは次回に続きから）
 UA = {"User-Agent": "tdr-crowd-simulator/1.0 (personal, non-commercial research)"}
 
 CHUNK_RE = re.compile(r'"(tdl|tds)":\{"date":(\d{8}),"openTime":\{"open":"([^"]*)","close":"([^"]*)"\}')
@@ -92,8 +93,21 @@ def main() -> int:
     done = set(DONE.read_text().split()) if DONE.exists() else set()
 
     caps = [c for c in list_captures() if f"{c[0]}|{c[1]}" not in done]
-    print(f"{len(caps)} new captures to read")
-    for ts, orig in caps:
+    # 月ごとに一番新しい保存ページを先に読む（その月の最終的な価格に近いので）
+    def month_of(c):
+        return re.search(r"/(20\d{4})/?$", c[1].split("?")[0]).group(1)
+    latest = {}
+    for c in caps:
+        k = (month_of(c), "en" if "/en/" in c[1] else "ja")
+        if k not in latest or c[0] > latest[k][0]:
+            latest[k] = c
+    first = sorted(set(latest.values()), key=lambda c: c[0], reverse=True)
+    rest = sorted(set(caps) - set(first), key=lambda c: c[0], reverse=True)
+    caps = (first + rest)[:MAX_CAPTURES]
+    print(f"{len(first) + len(rest)} new captures, reading {len(caps)} this run")
+    for i, (ts, orig) in enumerate(caps):
+        if i and i % 20 == 0:
+            save(rows, done)
         try:
             page = get(f"https://web.archive.org/web/{ts}id_/{orig}")
         except Exception as e:
@@ -112,14 +126,18 @@ def main() -> int:
         print(f"{ts} {orig.split('tokyodisneyresort.jp/')[-1]}: {n} dates")
         time.sleep(2)
 
+    save(rows, done)
+    print(f"prices: {len(rows)} park-days")
+    return 0
+
+
+def save(rows, done) -> None:
     with OUT.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         w.writeheader()
         for k in sorted(rows):
             w.writerow({fld: rows[k][fld] for fld in FIELDS})
     DONE.write_text("\n".join(sorted(done)) + "\n")
-    print(f"prices: {len(rows)} park-days")
-    return 0
 
 
 if __name__ == "__main__":

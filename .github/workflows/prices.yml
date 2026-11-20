@@ -20,7 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/fetch_prices.py
-      - name: Commit
+        timeout-minutes: 45
+      - name: Commit (also after a timeout, to keep progress)
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
