@@ -7,18 +7,18 @@ on:
       - "scripts/**"
       - ".github/workflows/pages.yml"
   schedule:
-    # 毎日 JST 22:30 に、その日集めたデータを反映して再公開
+    # 毎日 JST 22:30：前日までの混雑実績を取り込み、モデルを学習し直して再公開
     - cron: "30 13 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -28,7 +28,26 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/build_stats.py
+
+      - name: Fetch daily crowd history (current and previous month only)
+        run: python3 scripts/fetch_history.py
+
+      - name: Fit model and validate
+        run: node scripts/fit_model.js
+
+      - name: Build daily summary of own measurements
+        run: python3 scripts/build_stats.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/history site/data
+          if ! git diff --cached --quiet; then
+            git commit -m "data: crowd history and model $(TZ=Asia/Tokyo date +'%Y-%m-%d')"
+            for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done
+          fi
+
       - run: python3 scripts/build_site.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

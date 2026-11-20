@@ -1,0 +1,146 @@
+{
+ "generated_at": "2026-11-20T13:49",
+ "source": "Queue-Times.com crowd calendar",
+ "parks": {
+  "tdl": {
+   "coefs": {
+    "m_1": 38.9,
+    "m_2": 53.31,
+    "m_3": 58.61,
+    "m_4": 37.72,
+    "m_5": 40.8,
+    "m_6": 37.41,
+    "m_7": 19.34,
+    "m_8": 16.56,
+    "m_9": 21,
+    "m_10": 37.63,
+    "m_11": 59.06,
+    "m_12": 60.2,
+    "d_offoff": 20.87,
+    "d_offwork": 8.51,
+    "d_workoff": 9.63,
+    "d_mon": 12.86,
+    "d_tue": 0.98,
+    "d_thu": 4.88,
+    "d_renkyu_mid": 11.37,
+    "d_renkyu_last": 1.85,
+    "p_newyear": 4.18,
+    "p_spring": 16.85,
+    "p_gw": -2.25,
+    "p_summer": 16.24,
+    "p_obon": 16.13,
+    "p_halloween": 12.66,
+    "p_xmas": 4.91,
+    "p_xmas_day": -1.84,
+    "y_2024": 8.38,
+    "y_2025": 4.48,
+    "y_2026": 14.25
+   },
+   "latestYear": 2026,
+   "thresholds": [
+    45,
+    63,
+    79,
+    92
+   ],
+   "validation": {
+    "n": 323,
+    "from": "2026-01-01",
+    "to": "2026-11-19",
+    "mae": 19.8,
+    "corr": 0.42,
+    "within10": 0.27,
+    "levelExact": 0.27,
+    "levelWithin1": 0.68,
+    "quietPrecision": 0.55,
+    "maeNaive": 19.9
+   },
+   "fitAll": {
+    "n": 1419,
+    "from": "2023-01-01",
+    "to": "2026-11-19",
+    "mae": 15.1,
+    "corr": 0.66,
+    "within10": 0.42,
+    "levelExact": 0.38,
+    "levelWithin1": 0.83,
+    "quietPrecision": 0.74
+   },
+   "trained": {
+    "from": "2023-01-01",
+    "to": "2026-11-19",
+    "n": 1419
+   }
+  },
+  "tds": {
+   "coefs": {
+    "m_1": 39.17,
+    "m_2": 53.74,
+    "m_3": 60.98,
+    "m_4": 40.77,
+    "m_5": 40.52,
+    "m_6": 41.19,
+    "m_7": 27.05,
+    "m_8": 26.38,
+    "m_9": 33.88,
+    "m_10": 39.68,
+    "m_11": 66.14,
+    "m_12": 58.85,
+    "d_offoff": 15.79,
+    "d_offwork": 1.63,
+    "d_workoff": 9.56,
+    "d_mon": 10.75,
+    "d_tue": 0.48,
+    "d_thu": 5.64,
+    "d_renkyu_mid": 16.11,
+    "d_renkyu_last": 2.44,
+    "p_newyear": 7.84,
+    "p_spring": 19.46,
+    "p_gw": -1.5,
+    "p_summer": 14.71,
+    "p_obon": 12.43,
+    "p_halloween": 8.11,
+    "p_xmas": 6.02,
+    "p_xmas_day": -10.74,
+    "y_2024": -3.57,
+    "y_2025": 5.81,
+    "y_2026": 15.54
+   },
+   "latestYear": 2026,
+   "thresholds": [
+    51,
+    67,
+    79,
+    91
+   ],
+   "validation": {
+    "n": 323,
+    "from": "2026-01-01",
+    "to": "2026-11-19",
+    "mae": 20,
+    "corr": 0.29,
+    "within10": 0.31,
+    "levelExact": 0.23,
+    "levelWithin1": 0.59,
+    "quietPrecision": 0.49,
+    "maeNaive": 22.4
+   },
+   "fitAll": {
+    "n": 1419,
+    "from": "2023-01-01",
+    "to": "2026-11-19",
+    "mae": 15.4,
+    "corr": 0.64,
+    "within10": 0.4,
+    "levelExact": 0.44,
+    "levelWithin1": 0.8,
+    "quietPrecision": 0.72
+   },
+   "trained": {
+    "from": "2023-01-01",
+    "to": "2026-11-19",
+    "n": 1419
+   }
+  }
+ }
+}
