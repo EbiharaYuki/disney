@@ -13,17 +13,18 @@ jobs:
       - name: Fetch samples
         run: |
           UA="Mozilla/5.0 (compatible; tdr-crowd-simulator/1.0; personal non-commercial)"
-          echo "===== robots.txt"; curl -s -A "$UA" https://www.tokyodisneyresort.jp/robots.txt | head -40
+          echo "===== ip"; curl -s --max-time 10 https://api.ipify.org; echo
+          echo "===== robots.txt"; curl -s --max-time 40 -A "$UA" https://www.tokyodisneyresort.jp/robots.txt | head -40
           for u in \
             https://www.tokyodisneyresort.jp/tdl/ticket/index/202612/ \
             https://www.tokyodisneyresort.jp/ticket/sales_status/202612/ \
             https://www.tokyodisneyresort.jp/tdl/monthly/calendar/202612/ ; do
             echo "===== $u"
-            curl -s -L -A "$UA" -o p.html -w "code=%{http_code} size=%{size_download}\n" "$u"
+            curl -s --max-time 40 -L -A "$UA" -o p.html -w "code=%{http_code} size=%{size_download}\n" "$u"
             grep -o -E '(9:00|8:45|10:00)[^<]{0,20}|[0-9]{1,2},?[0-9]{3}円|data-[a-z-]*price[^ >]*|"price[^"]*":[^,]{0,20}|class="[^"]*(price|calendar|day)[^"]*"' p.html | sort | uniq -c | sort -rn | head -25
             grep -o -E '<script[^>]*src="[^"]*"' p.html | head -10
             grep -o -E '/[a-zA-Z0-9_/.-]*(api|json|calendar|price)[a-zA-Z0-9_/.?=-]*' p.html | sort -u | head -20
           done
           echo "===== wayback CDX sample"
-          curl -s "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/ticket/sales_status/2024*&output=json&limit=20&filter=statuscode:200&collapse=urlkey" | head -40
-          curl -s "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/tdl/ticket/index/2025*&output=json&limit=20&filter=statuscode:200&collapse=urlkey" | head -30
+          curl -s --max-time 40 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/ticket/sales_status/2024*&output=json&limit=20&filter=statuscode:200&collapse=urlkey" | head -40
+          curl -s --max-time 40 "https://web.archive.org/cdx/search/cdx?url=tokyodisneyresort.jp/tdl/ticket/index/2025*&output=json&limit=20&filter=statuscode:200&collapse=urlkey" | head -30
