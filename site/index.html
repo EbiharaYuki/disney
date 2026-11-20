@@ -323,7 +323,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   function renderDetail() {
     const dt = parse(state.sel), x = dayInfo(dt), p = P();
     const hol = holidayName(dt), mae = p.validation.mae;
-    const lo = Math.max(0, x.pred.score - mae), hi = Math.min(100, x.pred.score + mae);
+    const lo = Math.max(0, Math.round(x.pred.score - mae)), hi = Math.min(100, Math.round(x.pred.score + mae));
     const base = x.pred.parts.filter((q) => q.id.startsWith("m_"));
     const others = x.pred.parts.filter((q) => !q.id.startsWith("m_") && Math.abs(q.value) >= 0.5).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
     const yearAdj = p.coefs[`y_${Math.min(dt.getUTCFullYear(), p.latestYear)}`] || 0;
@@ -359,7 +359,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     for (let d = 1; d <= days; d++) {
       const dt = D(y, m, d);
       if (key(dt) < todayKey) continue;
-      list.push({ dt, s: M.predict(P(), dt).score });
+      list.push({ dt, s: dayInfo(dt).pred.score });
     }
     list.sort((a, b) => a.s - b.s || a.dt - b.dt);
     $("picks-title").textContent = `${m + 1}月の狙い目 TOP5（予想）`;
@@ -376,6 +376,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     const v = P().validation, vw = P().validationWeather, f = (s) => s.slice(0, 4) + "年" + Number(s.slice(5, 7)) + "月" + Number(s.slice(8, 10)) + "日";
     $("acc-body").innerHTML = `
       <p class="prose">${PARK_NAMES[state.park]}について、<b>2025年までのデータだけ</b>で作った予想を、${f(v.from)}〜${f(v.to)}（${v.n}日）の実績と比べたテストの結果です。</p>
+      <h3 style="margin-top:12px">天気なし（8日以上先の予想）</h3>
       <div class="stats">
         <div class="stat"><b>±${v.mae}</b><span>平均のズレ（ポイント）</span></div>
         <div class="stat"><b>${Math.round(v.levelWithin1 * 100)}%</b><span>5段階で±1段階以内に当たった日</span></div>
