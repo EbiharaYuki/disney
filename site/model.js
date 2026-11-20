@@ -88,6 +88,43 @@
   /** 予報の信頼度: 先の日ほど平年値に寄せる（lead = 何日先か） */
   const forecastWeight = (lead) => (lead <= 2 ? 1 : lead <= 4 ? 0.7 : lead <= 7 ? 0.4 : 0);
 
+  // ---- 混雑要因の候補 ----
+  // ここに並べた要因は、毎日の学習で効果を検証し、統計的にはっきりしたものだけ予想に使う（scripts/fit_model.js）。
+  // fn(c) の c = { dt, m (1-12), d, off, prevOff, nextOff, park, ev (その日の要因タグの Set) }
+  const md = (c, m1, d1, m2, d2) => inRange(c.dt, m1, d1, m2, d2);
+  const LUNAR_NY = ["2023-01-22", "2024-02-10", "2025-01-29", "2026-02-17", "2027-02-06", "2028-01-26"];
+  const nearLunarNY = (dt) => LUNAR_NY.some((k) => { const diff = (dt - parse(k)) / 864e5; return diff >= -1 && diff <= 7; });
+  const FACTORS = [
+    // 暦から計算できるもの
+    { id: "f_tobiishi", group: "暦", label: "飛び石連休の中日の平日", src: "ご提案", fn: (c) => !c.off && c.prevOff && c.nextOff },
+    { id: "f_after_renkyu", group: "暦", label: "3連休以上が明けた平日", src: "定番", fn: (c) => !c.off && c.prevOff && isOff(addDays(c.dt, -2)) && isOff(addDays(c.dt, -3)) },
+    { id: "f_payday", group: "暦", label: "給料日（25日）後の休日", src: "定番", fn: (c) => c.off && c.d >= 25 },
+    { id: "f_kenmin", group: "暦", label: "関東の都民・県民の日（平日）", src: "定番", fn: (c) => !c.off && [[6, 15], [10, 1], [10, 28], [11, 13], [11, 14]].some(([m, d]) => c.m === m && c.d === d) },
+    { id: "f_summer_end", group: "学校", label: "夏休み最終週の平日", src: "定番", fn: (c) => !c.off && md(c, 8, 25, 8, 31) },
+    { id: "f_new_term", group: "学校", label: "新学期直後の平日（4月中旬）", src: "ブログ", fn: (c) => !c.off && md(c, 4, 7, 4, 20) },
+    { id: "f_gw_after", group: "学校", label: "GW明けの平日", src: "ブログ", fn: (c) => !c.off && md(c, 5, 7, 5, 16) },
+    { id: "f_school_trip", group: "学校", label: "修学旅行シーズンの平日（5月下旬〜6月中旬）", src: "ブログ", fn: (c) => !c.off && md(c, 5, 20, 6, 15) },
+    { id: "f_exam", group: "学校", label: "受験シーズンの平日（1月中旬〜2月上旬）", src: "ブログ", fn: (c) => !c.off && md(c, 1, 10, 2, 10) },
+    { id: "f_grad_trip", group: "学校", label: "大学生の春休み・卒業旅行シーズンの平日", src: "ブログ", fn: (c) => !c.off && md(c, 2, 11, 3, 19) },
+    { id: "f_univ_sep", group: "学校", label: "大学生の夏休み（9月前半の平日）", src: "定番", fn: (c) => !c.off && md(c, 9, 1, 9, 20) },
+    { id: "f_dec_first", group: "季節", label: "12月第1週の平日", src: "ブログ", fn: (c) => !c.off && md(c, 12, 1, 12, 7) },
+    { id: "f_china_gw", group: "海外", label: "中国の国慶節（10/1〜7）", src: "定番", fn: (c) => md(c, 10, 1, 10, 7) },
+    { id: "f_lunar_ny", group: "海外", label: "春節（中華圏の旧正月）", src: "定番", fn: (c) => nearLunarNY(c.dt) },
+    { id: "f_mickey_bday", group: "記念日", label: "ミッキー＆ミニーの誕生日（11/18）", src: "ご提案", fn: (c) => c.m === 11 && c.d === 18 },
+    { id: "f_char_day", group: "記念日", label: "キャラクターの記念日（ドナルド6/9・スティッチ6/26）", src: "定番", fn: (c) => (c.m === 6 && (c.d === 9 || c.d === 26)) },
+    { id: "f_park_anniv", group: "記念日", label: "開園記念日（ランド4/15・シー9/4）", src: "定番", fn: (c) => (c.park === "tdl" ? c.m === 4 && c.d === 15 : c.m === 9 && c.d === 4) },
+    // 要因カレンダー（data/factors/events.csv と Queue-Times のイベント記録・営業時間）から
+    { id: "e_event_eve", group: "パーク", label: "新イベント開始の前日（スニーク）", src: "ブログ", tag: "event_eve" },
+    { id: "e_event_first", group: "パーク", label: "イベント開始から1週間", src: "ブログ", tag: "event_first" },
+    { id: "e_event_last", group: "パーク", label: "イベント最終週（駆け込み）", src: "定番", tag: "event_last" },
+    { id: "e_merch", group: "パーク", label: "グッズ発売日", src: "ご提案", tag: "merch" },
+    { id: "e_open", group: "パーク", label: "アトラクション・エリアのオープンから1週間", src: "ご提案", tag: "open" },
+    { id: "e_show", group: "パーク", label: "新パレード・ショーの開始日", src: "定番", tag: "show" },
+    { id: "e_short", group: "パーク", label: "時短営業（貸切など）", src: "データ", tag: "short" },
+    { id: "e_other_short", group: "パーク", label: "もう片方のパークが時短営業", src: "ブログ", tag: "other_short" },
+  ];
+  const FACTOR_IDS = FACTORS.map((f) => f.id);
+
   const LABELS = {
     d_offoff: "休日で翌日も休み", d_offwork: "休日で翌日は平日", d_workoff: "休みの前日",
     d_mon: "平日の月曜", d_tue: "平日の火曜", d_thu: "平日の木曜",
@@ -96,12 +133,13 @@
     w_heavy: "大雨", w_hot: "猛暑（32℃以上）", w_cold: "寒い（8℃以下）",
   };
   PERIODS.forEach((p) => (LABELS[p.id] = p.name));
+  FACTORS.forEach((f) => (LABELS[f.id] = f.label));
   MONTH_IDS.forEach((id, i) => (LABELS[id] = `${i + 1}月`));
 
   /** 日付 → { 特徴量id: 値 }（0 の特徴量は省略）。
    *  yearLevel: 年の特徴量に使う年（未来日は最新年を渡す）
    *  wx: その日の天気 {r, h, t}（無ければ null）、clim: 月ごとの平年値、weight: 天気の信頼度 0〜1 */
-  function features(dt, yearLevel, wx, clim, weight = 1) {
+  function features(dt, yearLevel, wx, clim, weight = 1, park = "tdl", ev = null) {
     const f = {};
     f[MONTH_IDS[dt.getUTCMonth()]] = 1;
     const off = isOff(dt), nextOff = isOff(addDays(dt, 1)), prevOff = isOff(addDays(dt, -1));
@@ -122,32 +160,34 @@
     const y = yearLevel || dt.getUTCFullYear();
     const yid = `y_${Math.min(y, 2026)}`;
     if (YEAR_IDS.includes(yid)) f[yid] = 1;
+    const c = { dt, m: dt.getUTCMonth() + 1, d: dt.getUTCDate(), off, prevOff, nextOff, park, ev: ev || new Set() };
+    for (const fa of FACTORS) if (fa.tag ? c.ev.has(fa.tag) : fa.fn(c)) f[fa.id] = 1;
     if (wx && clim && weight > 0) {
-      const c = clim[dt.getUTCMonth()];
+      const cl = clim[dt.getUTCMonth()];
       const put = (id, v) => { if (Math.abs(v) > 1e-9) f[id] = weight * v; };
-      put("w_rain_hours", wx.h - c.h);
-      if (off) put("w_rain_hours_off", wx.h - c.h);
-      put("w_heavy", (wx.r >= HEAVY_MM ? 1 : 0) - c.heavy);
-      put("w_hot", (wx.t >= HOT_C ? 1 : 0) - c.hot);
-      put("w_cold", (wx.t <= COLD_C ? 1 : 0) - c.cold);
+      put("w_rain_hours", wx.h - cl.h);
+      if (off) put("w_rain_hours_off", wx.h - cl.h);
+      put("w_heavy", (wx.r >= HEAVY_MM ? 1 : 0) - cl.heavy);
+      put("w_hot", (wx.t >= HOT_C ? 1 : 0) - cl.hot);
+      put("w_cold", (wx.t <= COLD_C ? 1 : 0) - cl.cold);
     }
     return f;
   }
 
   /** model = { coefs, latestYear, clim } → { score, parts: [{id, label, value}] }
    *  wx: その日の天気（実績か予報）、weight: 天気の信頼度（実績なら 1） */
-  function predict(model, dt, wx, weight = 1) {
+  function predict(model, dt, wx, weight = 1, park = "tdl", ev = null) {
     const y = Math.min(dt.getUTCFullYear(), model.latestYear || dt.getUTCFullYear());
-    const f = features(dt, y, wx, model.clim, weight);
+    const f = features(dt, y, wx, model.clim, weight, park, ev);
     let s = 0;
     const parts = [];
     for (const id in f) {
       const c = model.coefs[id] || 0;
       s += c * f[id];
-      if (!id.startsWith("y_")) parts.push({ id, label: LABELS[id] || id, value: c * f[id] });
+      if (!id.startsWith("y_") && c !== 0) parts.push({ id, label: LABELS[id] || id, value: c * f[id] });
     }
     return { score: Math.max(0, Math.min(100, Math.round(s))), parts };
   }
 
-  root.CrowdModel = { D, key, parse, addDays, WD, holidays, holidayName, isOff, features, predict, climatology, forecastWeight, FEATURES, LABELS, MONTH_IDS, HEAVY_MM, HOT_C, COLD_C };
+  root.CrowdModel = { D, key, parse, addDays, WD, holidays, holidayName, isOff, features, predict, climatology, forecastWeight, FEATURES, FACTORS, FACTOR_IDS, LABELS, MONTH_IDS, HEAVY_MM, HOT_C, COLD_C };
 })(typeof window !== "undefined" ? window : globalThis);

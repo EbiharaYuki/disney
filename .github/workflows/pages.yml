@@ -38,7 +38,10 @@ jobs:
         continue-on-error: true
         run: python3 scripts/fetch_weather.py
 
-      - name: Fit model and validate
+      - name: Build factor calendar (events, short hours)
+        run: python3 scripts/build_events.py
+
+      - name: Fit model, test factors and validate
         run: node scripts/fit_model.js
 
       - name: Build daily summary of own measurements

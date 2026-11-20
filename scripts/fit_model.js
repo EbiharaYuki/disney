@@ -1,9 +1,12 @@
-/* data/history/*.csv（Queue-Times の日別混雑度）から予想モデルを学習し、精度を検証する。
+/* 予想モデルの学習・混雑要因の検証・精度テスト。
  *
- * 1. 検証: 2025年末までのデータで学習 → 2026年の実績を予想して誤差を測る（未来を当てられるかのテスト）
- * 2. 本番: 全データで学習した係数を site/data/model.json に保存
- * 3. 過去の実績を site/data/history.json に保存（カレンダーの過去日に表示）
+ * 1. 基本モデル（月・曜日の種類・連休・季節・年・天気）を線形回帰（リッジ）で学習
+ * 2. 混雑要因の候補（site/model.js の FACTORS）ごとに、基本モデルの予想と実績の差（残差）を集計して効果を検証
+ *    効果がはっきりした要因（日数8日以上、t値2以上、一緒に学習しても向きが同じ、2ポイント以上）だけを採用
+ * 3. 採用した要因を加えてもう一度学習 → site/data/model.json
+ * 4. 精度テスト: 2025年末までのデータだけで 1〜3 をやり直し、2026年の実績を予想して誤差を測る
  *
+ * 入力: data/history/*.csv, site/data/weather.json, site/data/events.json
  * 使い方: node scripts/fit_model.js
  */
 "use strict";
@@ -14,34 +17,38 @@ const M = globalThis.CrowdModel;
 
 const ROOT = path.resolve(__dirname, "..");
 const TEST_START = "2026-01-01";
-const WX_PATH = path.join(ROOT, "site/data/weather.json");
-// 天気の実績（予報は学習に使わない）
-const WX = fs.existsSync(WX_PATH)
-  ? Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(WX_PATH, "utf8")).days).filter(([, w]) => !w.f))
-  : {};
-const climFrom = (until) => (Object.keys(WX).length ? M.climatology(Object.fromEntries(Object.entries(WX).filter(([k]) => k < until))) : null);
 const RIDGE = 0.5;
+const ADOPT = { minDays: 8, minT: 2, minEffect: 2 };
+
+const readJSON = (p, fallback) => (fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : fallback);
+const WX = Object.fromEntries(Object.entries(readJSON(path.join(ROOT, "site/data/weather.json"), { days: {} }).days).filter(([, w]) => !w.f));
+const EVENTS = readJSON(path.join(ROOT, "site/data/events.json"), { parks: {} }).parks;
+const climFrom = (until) => (Object.keys(WX).length ? M.climatology(Object.fromEntries(Object.entries(WX).filter(([k]) => k < until))) : null);
+const BASE = M.FEATURES;
 
 function readHistory(park) {
   const lines = fs.readFileSync(path.join(ROOT, "data/history", `${park}.csv`), "utf8").trim().split("\n");
   const head = lines.shift().split(",");
+  const tags = (EVENTS[park] && EVENTS[park].tags) || {};
   return lines.map((l) => {
     const c = l.split(",");
     const r = Object.fromEntries(head.map((h, i) => [h, c[i]]));
-    return { date: r.date, crowd: Number(r.crowd), hours: r.hours };
-  }).filter((r) => Number.isFinite(r.crowd) && r.hours !== ""); // 休園日などは除外
+    return { date: r.date, crowd: Number(r.crowd), hours: r.hours, park, ev: new Set(tags[r.date] || []) };
+  }).filter((r) => Number.isFinite(r.crowd) && r.hours !== "");
 }
 
-// (XᵀX + λI) β = Xᵀy をガウスの消去法で解く
-function fit(rows, latestYear, clim) {
-  const F = M.FEATURES, n = F.length, idx = Object.fromEntries(F.map((f, i) => [f, i]));
+const feat = (r, clim) => M.features(M.parse(r.date), undefined, WX[r.date], clim, 1, r.park, r.ev);
+
+// (XᵀX + λI) β = Xᵀy をガウスの消去法で解く。使う特徴量は names だけ
+function fit(rows, latestYear, clim, names) {
+  const n = names.length, idx = Object.fromEntries(names.map((f, i) => [f, i]));
   const A = Array.from({ length: n }, () => new Float64Array(n + 1));
   for (const r of rows) {
-    const f = M.features(M.parse(r.date), undefined, WX[r.date], clim);
-    const ids = Object.keys(f).map((k) => idx[k]);
-    for (const i of ids) {
-      for (const j of ids) A[i][j] += f[F[i]] * f[F[j]];
-      A[i][n] += f[F[i]] * r.crowd;
+    const f = feat(r, clim);
+    const ids = Object.keys(f).filter((k) => k in idx);
+    for (const a of ids) {
+      for (const b of ids) A[idx[a]][idx[b]] += f[a] * f[b];
+      A[idx[a]][n] += f[a] * r.crowd;
     }
   }
   for (let i = 0; i < n; i++) A[i][i] += RIDGE;
@@ -56,11 +63,12 @@ function fit(rows, latestYear, clim) {
     }
   }
   const coefs = {};
-  F.forEach((f, i) => (coefs[f] = Math.round((A[i][n] / A[i][i]) * 100) / 100));
+  names.forEach((f, i) => (coefs[f] = Math.round((A[i][n] / A[i][i]) * 100) / 100));
   return { coefs, latestYear, clim };
 }
 
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+const sd = (a) => { const m = mean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / Math.max(1, a.length - 1)); };
 function corr(a, b) {
   const ma = mean(a), mb = mean(b);
   let num = 0, da = 0, db = 0;
@@ -68,36 +76,50 @@ function corr(a, b) {
   return num / Math.sqrt(da * db);
 }
 const quantile = (arr, q) => { const s = [...arr].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
-const levelOf = (v, th) => th.findIndex((t) => v < t) === -1 ? th.length : th.findIndex((t) => v < t);
+const levelOf = (v, th) => { const i = th.findIndex((t) => v < t); return i === -1 ? th.length : i; };
+const pred = (model, r, useWeather) => M.predict(model, M.parse(r.date), useWeather ? WX[r.date] : null, 1, r.park, r.ev).score;
 
 function evaluate(model, rows, thresholds, useWeather) {
-  const pred = rows.map((r) => M.predict(model, M.parse(r.date), useWeather ? WX[r.date] : null).score);
+  const p = rows.map((r) => pred(model, r, useWeather));
   const act = rows.map((r) => r.crowd);
-  const err = pred.map((p, i) => Math.abs(p - act[i]));
-  const lvP = pred.map((p) => levelOf(p, thresholds)), lvA = act.map((a) => levelOf(a, thresholds));
-  // 「空いてる」と予想した日（下位2段階）のうち、実際に下位2段階だった割合
-  const quietPred = lvP.map((l, i) => [l, lvA[i]]).filter(([l]) => l <= 1);
+  const err = p.map((x, i) => Math.abs(x - act[i]));
+  const lvP = p.map((x) => levelOf(x, thresholds)), lvA = act.map((a) => levelOf(a, thresholds));
+  const quiet = lvP.map((l, i) => [l, lvA[i]]).filter(([l]) => l <= 1);
   return {
-    n: rows.length,
-    from: rows[0].date, to: rows[rows.length - 1].date,
+    n: rows.length, from: rows[0].date, to: rows[rows.length - 1].date,
     mae: +mean(err).toFixed(1),
-    corr: +corr(pred, act).toFixed(2),
-    within10: +(err.filter((e) => e <= 10).length / err.length).toFixed(2),
-    levelExact: +(lvP.filter((l, i) => l === lvA[i]).length / lvP.length).toFixed(2),
+    corr: +corr(p, act).toFixed(2),
     levelWithin1: +(lvP.filter((l, i) => Math.abs(l - lvA[i]) <= 1).length / lvP.length).toFixed(2),
-    quietPrecision: quietPred.length ? +(quietPred.filter(([, a]) => a <= 1).length / quietPred.length).toFixed(2) : null,
+    quietPrecision: quiet.length ? +(quiet.filter(([, a]) => a <= 1).length / quiet.length).toFixed(2) : null,
   };
 }
 
-// 比較用の素朴な予想: 学習期間の「月の平均 + 曜日の平均 − 全体平均」
-function naive(train) {
-  const all = mean(train.map((r) => r.crowd));
-  const by = (fn) => { const g = {}; train.forEach((r) => (g[fn(r)] ||= []).push(r.crowd)); return Object.fromEntries(Object.entries(g).map(([k, v]) => [k, mean(v)])); };
-  const mo = by((r) => r.date.slice(5, 7)), wd = by((r) => M.parse(r.date).getUTCDay());
-  return (r) => mo[r.date.slice(5, 7)] + wd[M.parse(r.date).getUTCDay()] - all;
+/** 要因の検証: 基本モデルの残差を要因ごとに集計し、さらに全候補を一緒に学習して係数も見る */
+function analyzeFactors(rows, latestYear, clim) {
+  const base = fit(rows, latestYear, clim, BASE);
+  const resid = rows.map((r) => r.crowd - M.predict(base, M.parse(r.date), WX[r.date], 1, r.park, r.ev).score);
+  const hits = Object.fromEntries(M.FACTOR_IDS.map((id) => [id, []]));
+  rows.forEach((r, i) => { const f = feat(r, clim); for (const id of M.FACTOR_IDS) if (f[id]) hits[id].push(resid[i]); });
+  const candidates = M.FACTOR_IDS.filter((id) => hits[id].length >= 5);
+  const joint = fit(rows, latestYear, clim, [...BASE, ...candidates]);
+  const factors = M.FACTORS.map((fa) => {
+    const h = hits[fa.id], n = h.length;
+    if (n < 2) return { id: fa.id, n, status: n ? "データ不足" : "データなし" };
+    const m = mean(h), se = sd(h) / Math.sqrt(n), t = se > 0 ? m / se : 0;
+    const coef = joint.coefs[fa.id];
+    const adopted = n >= ADOPT.minDays && Math.abs(t) >= ADOPT.minT && coef != null && Math.sign(coef) === Math.sign(m) && Math.abs(coef) >= ADOPT.minEffect;
+    const status = adopted ? "採用" : n < ADOPT.minDays ? "データ不足" : Math.abs(t) < ADOPT.minT ? "効果はっきりせず" : "ほかの要因と区別できず";
+    return { id: fa.id, n, effect: +m.toFixed(1), ci: +(1.96 * se).toFixed(1), t: +t.toFixed(1), coef: coef != null ? coef : null, status };
+  });
+  return { factors, adopted: factors.filter((f) => f.status === "採用").map((f) => f.id) };
 }
 
-const out = { generated_at: new Date().toISOString().slice(0, 16), source: "Queue-Times.com crowd calendar", parks: {} };
+function train(rows, latestYear, clim) {
+  const { factors, adopted } = analyzeFactors(rows, latestYear, clim);
+  return { model: fit(rows, latestYear, clim, [...BASE, ...adopted]), factors, adopted };
+}
+
+const out = { generated_at: new Date().toISOString().slice(0, 16), source: "Queue-Times.com crowd calendar", adoptRule: ADOPT, parks: {} };
 const history = {};
 for (const park of ["tdl", "tds"]) {
   const rows = readHistory(park);
@@ -106,22 +128,30 @@ for (const park of ["tdl", "tds"]) {
   const recent = rows.filter((r) => r.date > `${latestYear - 1}${last.slice(4)}`).map((r) => r.crowd);
   const thresholds = [0.2, 0.4, 0.6, 0.8].map((q) => quantile(recent, q));
 
-  const train = rows.filter((r) => r.date < TEST_START), test = rows.filter((r) => r.date >= TEST_START);
-  const valModel = fit(train, latestYear - 1, climFrom(TEST_START));
-  const validation = evaluate(valModel, test, thresholds, false);
-  const validationWeather = valModel.clim ? evaluate(valModel, test, thresholds, true) : null;
-  const nv = naive(train);
-  const naiveErr = mean(test.map((r) => Math.abs(nv(r) - r.crowd)));
-  validation.maeNaive = +naiveErr.toFixed(1);
+  // 精度テスト（2025年末までで学習・要因選び → 2026年を予想）
+  const trainRows = rows.filter((r) => r.date < TEST_START), testRows = rows.filter((r) => r.date >= TEST_START);
+  const climT = climFrom(TEST_START);
+  const baseT = fit(trainRows, latestYear - 1, climT, BASE);
+  const withT = train(trainRows, latestYear - 1, climT);
+  const validationBase = { noWeather: evaluate(baseT, testRows, thresholds, false), weather: climT ? evaluate(baseT, testRows, thresholds, true) : null };
+  const validation = evaluate(withT.model, testRows, thresholds, false);
+  const validationWeather = climT ? evaluate(withT.model, testRows, thresholds, true) : null;
 
-  const model = fit(rows, latestYear, climFrom("9999"));
-  const fitAll = evaluate(model, rows, thresholds, true);
-  out.parks[park] = { ...model, thresholds, validation, validationWeather, fitAll, trained: { from: rows[0].date, to: last, n: rows.length } };
-
+  // 本番（全データ）
+  const climA = climFrom("9999");
+  const { model, factors, adopted } = train(rows, latestYear, climA);
+  out.parks[park] = {
+    ...model, thresholds, adopted, factors,
+    validation, validationWeather, validationBase, adoptedInTest: withT.adopted,
+    trained: { from: rows[0].date, to: last, n: rows.length },
+  };
   history[park] = Object.fromEntries(rows.map((r) => [r.date, r.crowd]));
-  console.log(park, JSON.stringify({ thresholds, validation, validationWeather, fitAllMae: fitAll.mae }));
+
+  console.log(`\n== ${park}  test MAE: base ${validationBase.noWeather.mae}/${validationBase.weather && validationBase.weather.mae} (no wx / wx)  → with factors ${validation.mae}/${validationWeather && validationWeather.mae}`);
+  console.log(`   adopted in test: ${withT.adopted.map((id) => M.LABELS[id]).join(" / ") || "なし"}`);
+  console.log(`   adopted (all data): ${adopted.map((id) => M.LABELS[id]).join(" / ") || "なし"}`);
+  for (const f of factors) console.log(`   ${f.status.padEnd(10, "　")} n=${String(f.n).padStart(4)} effect=${f.effect ?? "-"}±${f.ci ?? "-"} t=${f.t ?? "-"} coef=${f.coef ?? "-"}  ${M.LABELS[f.id]}`);
 }
 fs.mkdirSync(path.join(ROOT, "site/data"), { recursive: true });
 fs.writeFileSync(path.join(ROOT, "site/data/model.json"), JSON.stringify(out, null, 1));
 fs.writeFileSync(path.join(ROOT, "site/data/history.json"), JSON.stringify(history));
-for (const p of ["tdl", "tds"]) console.log(p, "weather coefs", JSON.stringify(Object.fromEntries(Object.entries(out.parks[p].coefs).filter(([k]) => k.startsWith("w_")))));

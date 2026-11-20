@@ -154,6 +154,26 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .badge.mid { background: color-mix(in srgb, var(--lv3) 26%, var(--surface)); color: var(--fg); }
 .badge.ng { background: color-mix(in srgb, var(--lv5) 20%, var(--surface)); color: var(--fg); }
 
+/* 要因ランキング */
+.fx-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.fx { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.fx:last-child { border-bottom: 0; padding-bottom: 0; }
+.fx .name { font-size: .85rem; font-weight: 500; min-width: 0; }
+.fx .meta { font-size: .7rem; color: var(--muted); }
+.fx .val { font-variant-numeric: tabular-nums; font-weight: 700; font-size: .85rem; text-align: right; }
+.fx .val.up { color: var(--lv5); } .fx .val.down { color: var(--lv1); } .fx .val.na { color: var(--muted); font-weight: 500; }
+.fx .bar { grid-column: 1 / -1; position: relative; height: 10px; }
+.fx .bar::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 2px; background: var(--line); }
+.fx .bar .zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted); }
+.fx .bar .ci { position: absolute; top: 3px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+.fx .bar .pt { position: absolute; top: 0; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--muted); }
+.fx .bar .pt.up { background: var(--lv5); } .fx .bar .pt.down { background: var(--lv1); }
+.st { font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.st.adopt { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.src { font-size: .66rem; padding: 0 6px; border-radius: 4px; background: var(--bg); color: var(--muted); margin-right: 4px; }
+.fx-group { font-size: .78rem; font-weight: 700; color: var(--accent); margin-top: 14px; letter-spacing: .04em; }
+.todo { margin: 8px 0 0; padding-left: 1.1em; font-size: .82rem; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+
 .notes { font-size: .78rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
 .notes p { margin: 0; max-width: 65ch; }
 .notes a { color: var(--accent); font-weight: 700; }
@@ -197,6 +217,11 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     <div id="acc-body"><p class="prose">読み込み中…</p></div>
   </section>
 
+  <section class="card" id="factors">
+    <h2>混雑の要因ランキング</h2>
+    <div id="factors-body"><p class="prose">読み込み中…</p></div>
+  </section>
+
   <section class="card">
     <h2>予想の根拠</h2>
     <div class="basis">
@@ -224,6 +249,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
           <li>月・曜日の種類・連休・季節の期間ごとに「何ポイント混むか」を、過去の実績から回帰分析で求めています</li>
           <li>今年の全体の混み具合は、今年これまでの実績から推定しています</li>
           <li>天気（雨の時間・大雨・猛暑・寒さ）の影響も、過去の天気の実績と混雑度から求めています</li>
+          <li>飛び石連休・県民の日・イベント開始・時短営業などの「混雑の要因」は、効果がはっきりしたものだけを使っています</li>
         </ul>
       </section>
       <section>
@@ -253,7 +279,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   const LEVEL_NAMES = ["激空き", "空いてる", "ふつう", "混雑", "激混み"];
   const PARK_NAMES = { tdl: "ランド", tds: "シー" };
 
-  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} }, weather = {};
+  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} }, weather = {}, events = { tdl: {}, tds: {} };
 
   const jstToday = () => { const t = new Date(Date.now() + 9 * 3600e3); return D(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); };
   const today = jstToday(), todayKey = key(today);
@@ -272,7 +298,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     const wx = weather[k] || null;
     const lead = Math.round((dt - today) / 864e5);
     const wxWeight = !wx ? 0 : wx.f ? M.forecastWeight(lead) : 1;
-    const pred = M.predict(P(), dt, wx, wxWeight);
+    const ev = new Set(events[state.park][k] || []);
+    const pred = M.predict(P(), dt, wx, wxWeight, state.park, ev);
     const actual = history[state.park][k];
     const shown = actual != null ? actual : pred.score;
     return { k, pred, actual, shown, lv: levelOf(shown), past: k < todayKey, wx, wxWeight, lead };
@@ -388,8 +415,42 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
         <div class="stat"><b>${Math.round(vw.levelWithin1 * 100)}%</b><span>5段階で±1段階以内</span></div>
         <div class="stat"><b>${vw.quietPrecision != null ? Math.round(vw.quietPrecision * 100) + "%" : "—"}</b><span>「空き」予想の的中率</span></div>
       </div>
+      ${P().validationBase && P().validationBase.weather ? `<p class="prose">下の「混雑の要因」を加える前は ±${P().validationBase.weather.mae} でした。要因の選び方も2025年までのデータだけで決めているので、ズルなしの比較です。</p>` : ""}
       <p class="prose">上は天気の<b>実績</b>を使った場合なので、予報を使う直近の予想の「いちばん良くてこのくらい」という目安です。予報が外れればその分ズレます。</p>` : ""}
       <p class="prose">当てずっぽうなら「空き」予想の当たりは約40%です。<b>傾向はつかめているけれど、日ごとのブレは大きい</b>というのが正直なところです。天気やチケットの売れ行きで大きく動くので、「この日は絶対空いてる」という使い方ではなく、<b>候補日を比べる目安</b>として使ってください。</p>`;
+  }
+
+  function renderFactors() {
+    const p = P(), byId = Object.fromEntries(M.FACTORS.map((f) => [f.id, f]));
+    const RANGE = 30; // グラフの左右端 = ±30ポイント
+    const pos = (v) => 50 + Math.max(-RANGE, Math.min(RANGE, v)) / RANGE * 50;
+    const order = { "採用": 0, "効果はっきりせず": 1, "ほかの要因と区別できず": 1, "データ不足": 2, "データなし": 3 };
+    const groups = {};
+    for (const r of p.factors) (groups[byId[r.id].group] ||= []).push(r);
+    const row = (r) => {
+      const f = byId[r.id], has = r.effect != null;
+      const dir = !has ? "" : r.effect > 0 ? "up" : "down";
+      const lo = has ? pos(r.effect - r.ci) : 50, hi = has ? pos(r.effect + r.ci) : 50;
+      return `<li class="fx">
+        <div class="name">${esc(f.label)}<div class="meta"><span class="src">${esc(f.src)}</span>${r.n}日分のデータ</div></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span class="val ${has ? dir : "na"}">${has ? `${r.effect > 0 ? "+" : ""}${r.effect}` : "—"}</span>
+          <span class="st ${r.status === "採用" ? "adopt" : ""}">${r.status === "採用" ? "予想に採用" : r.status}</span>
+        </div>
+        ${has ? `<div class="bar" aria-label="効果 ${r.effect} ± ${r.ci}"><span class="zero"></span><span class="ci" style="left:${lo}%;width:${hi - lo}%"></span><span class="pt ${dir}" style="left:${pos(r.effect)}%"></span></div>` : ""}
+      </li>`;
+    };
+    $("factors-body").innerHTML = `
+      <p class="prose">いつもの予想（月・曜日・連休・季節・天気）と比べて、その要因がある日は<b>何ポイント混んだか</b>を過去の実績から測りました。灰色の帯は誤差の目安（95%）で、帯が真ん中の線をまたぐ要因は、偶然かもしれません。<b>日数が8日以上・誤差の帯が0をまたがない・2ポイント以上</b>の要因だけを予想に使っています。</p>
+      ${Object.entries(groups).map(([g, list]) => `<div class="fx-group">${esc(g)}</div><ul class="fx-list">${list.sort((a, b) => order[a.status] - order[b.status] || Math.abs(b.effect || 0) - Math.abs(a.effect || 0)).map(row).join("")}</ul>`).join("")}
+      <h3 style="margin-top:16px">まだ入っていない要因（データを集めれば検証できるもの）</h3>
+      <ul class="todo">
+        <li>グッズ発売日・新ショーの開始日（要因カレンダーに日付を入れると、自動で検証が始まります）</li>
+        <li>公式チケットの変動価格・チケット完売</li>
+        <li>台風・大雨警報・電車の運休</li>
+        <li>テレビやSNSで話題になった日、混雑予想サイトで「空いてる」と予想された日</li>
+      </ul>
+      <p class="prose">記念日（ミッキーの誕生日など）は年に1日しかないので、まだ数年分のデータしかありません。データが増えると、毎晩の学習で自動的に検証し直されます。</p>`;
   }
 
   function renderPark() {
@@ -399,7 +460,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     const p = P(), n = Object.keys(observed.tdl).length + Object.keys(observed.tds).length;
     $("status").textContent = `学習データ：${p.trained.from}〜${p.trained.to}（${p.trained.n}日）／モデル更新 ${model.generated_at.replace("T", " ")} UTC` + (n ? `／自前の計測 ${n}日分` : "");
   }
-  function renderAll() { if (!model) return; renderPark(); renderCalendar(); renderDetail(); renderPicks(); renderAccuracy(); renderStatus(); }
+  function renderAll() { if (!model) return; renderPark(); renderCalendar(); renderDetail(); renderPicks(); renderAccuracy(); renderFactors(); renderStatus(); }
 
   document.querySelector(".seg").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-park]"); if (!b) return;
@@ -422,9 +483,10 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   renderLegend();
 
   const getJSON = (u) => fetch(u, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(u))));
-  Promise.all([getJSON("data/model.json"), getJSON("data/history.json").catch(() => null), getJSON("data/observed.json").catch(() => null), getJSON("data/weather.json").catch(() => null)])
-    .then(([m, h, o, w]) => {
+  Promise.all([getJSON("data/model.json"), getJSON("data/history.json").catch(() => null), getJSON("data/observed.json").catch(() => null), getJSON("data/weather.json").catch(() => null), getJSON("data/events.json").catch(() => null)])
+    .then(([m, h, o, w, e]) => {
       model = m;
+      if (e && e.parks) events = { tdl: (e.parks.tdl || {}).tags || {}, tds: (e.parks.tds || {}).tags || {} };
       if (w && w.days) weather = w.days;
       if (h) history = { tdl: h.tdl || {}, tds: h.tds || {} };
       if (o && o.parks) observed = { tdl: o.parks.tdl || {}, tds: o.parks.tds || {} };
