@@ -237,6 +237,13 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
         <ul><li>祝日法のルール（振替休日・国民の休日を含む）で計算しています</li></ul>
       </section>
       <section>
+        <h3><span class="badge ok">公式</span>チケット価格・営業時間</h3>
+        <ul>
+          <li>大人1デーパスポートの価格と営業時間は、公式サイトのチケットカレンダーがインターネットアーカイブに保存されたものから集めています（公式サイトは自動取得できないため）。保存されていない月は価格なしとして扱います</li>
+          <li>今後3か月の営業時間（時短営業の日）は Queue-Times の公式カレンダー情報から毎日更新しています</li>
+        </ul>
+      </section>
+      <section>
         <h3><span class="badge ok">実データ</span>天気の実績と予報</h3>
         <ul>
           <li>Open-Meteo の舞浜地点のデータ。営業時間帯（9〜21時）の雨の時間・雨量・最高気温を使います</li>
@@ -279,7 +286,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   const LEVEL_NAMES = ["激空き", "空いてる", "ふつう", "混雑", "激混み"];
   const PARK_NAMES = { tdl: "ランド", tds: "シー" };
 
-  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} }, weather = {}, events = { tdl: {}, tds: {} };
+  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} }, weather = {}, events = { tdl: {}, tds: {} }, prices = { tdl: {}, tds: {} };
 
   const jstToday = () => { const t = new Date(Date.now() + 9 * 3600e3); return D(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); };
   const today = jstToday(), todayKey = key(today);
@@ -299,10 +306,11 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     const lead = Math.round((dt - today) / 864e5);
     const wxWeight = !wx ? 0 : wx.f ? M.forecastWeight(lead) : 1;
     const ev = new Set(events[state.park][k] || []);
-    const pred = M.predict(P(), dt, wx, wxWeight, state.park, ev);
+    const price = prices[state.park][k] ?? null;
+    const pred = M.predict(P(), dt, wx, wxWeight, state.park, ev, price);
     const actual = history[state.park][k];
     const shown = actual != null ? actual : pred.score;
-    return { k, pred, actual, shown, lv: levelOf(shown), past: k < todayKey, wx, wxWeight, lead };
+    return { k, pred, actual, shown, lv: levelOf(shown), past: k < todayKey, wx, wxWeight, lead, price, ev };
   }
 
   function renderLegend() {
@@ -377,6 +385,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
         <div class="scale-l"><span>0</span><span>帯＝過去の平均的なズレ（±${mae}）</span><span>100</span></div>
         ${x.past ? `<div class="box">この日の実績データはまだありません。</div>` : ""}`}
       ${weatherBox(x)}
+      ${x.price ? `<div class="box"><b>公式チケット価格</b>　大人1デーパスポート ¥${x.price.toLocaleString()}${P().priceMean ? `（平均 ¥${P().priceMean.toLocaleString()}）` : ""}</div>` : ""}
+      ${x.ev.has("short") ? `<div class="box"><b>時短営業の日</b>　閉園が早い日です（貸切イベントなど）。</div>` : x.ev.has("other_short") ? `<div class="box"><b>もう片方のパークが時短営業</b>　こちらに人が流れやすい日です。</div>` : ""}
       <ul class="parts" aria-label="予想の内訳">${rows}</ul>
       ${obs ? `<div class="box">自前の計測：運営中アトラクションの平均待ち <b>${obs.avg}分</b>（ピーク ${obs.peak}分・${obs.n}回計測、10〜20時）</div>` : ""}`;
   }
@@ -432,9 +442,9 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       const dir = !has ? "" : r.effect > 0 ? "up" : "down";
       const lo = has ? pos(r.effect - r.ci) : 50, hi = has ? pos(r.effect + r.ci) : 50;
       return `<li class="fx">
-        <div class="name">${esc(f.label)}<div class="meta"><span class="src">${esc(f.src)}</span>${r.n}日分のデータ</div></div>
+        <div class="name">${esc(f.label)}<div class="meta"><span class="src">${esc(f.src)}</span>${r.n}日分のデータ${r.continuous ? "（価格が分かる日）" : ""}</div></div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <span class="val ${has ? dir : "na"}">${has ? `${r.effect > 0 ? "+" : ""}${r.effect}` : "—"}</span>
+          <span class="val ${has ? dir : "na"}">${has ? `${r.effect > 0 ? "+" : ""}${r.effect}${r.continuous ? "<small>／千円</small>" : ""}` : "—"}</span>
           <span class="st ${r.status === "採用" ? "adopt" : ""}">${r.status === "採用" ? "予想に採用" : r.status}</span>
         </div>
         ${has ? `<div class="bar" aria-label="効果 ${r.effect} ± ${r.ci}"><span class="zero"></span><span class="ci" style="left:${lo}%;width:${hi - lo}%"></span><span class="pt ${dir}" style="left:${pos(r.effect)}%"></span></div>` : ""}
@@ -446,7 +456,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       <h3 style="margin-top:16px">まだ入っていない要因（データを集めれば検証できるもの）</h3>
       <ul class="todo">
         <li>グッズ発売日・新ショーの開始日（要因カレンダーに日付を入れると、自動で検証が始まります）</li>
-        <li>公式チケットの変動価格・チケット完売</li>
+        <li>チケット完売（価格はアーカイブに残っている日だけ検証しています）</li>
         <li>台風・大雨警報・電車の運休</li>
         <li>テレビやSNSで話題になった日、混雑予想サイトで「空いてる」と予想された日</li>
       </ul>
@@ -486,7 +496,10 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   Promise.all([getJSON("data/model.json"), getJSON("data/history.json").catch(() => null), getJSON("data/observed.json").catch(() => null), getJSON("data/weather.json").catch(() => null), getJSON("data/events.json").catch(() => null)])
     .then(([m, h, o, w, e]) => {
       model = m;
-      if (e && e.parks) events = { tdl: (e.parks.tdl || {}).tags || {}, tds: (e.parks.tds || {}).tags || {} };
+      if (e && e.parks) {
+        events = { tdl: (e.parks.tdl || {}).tags || {}, tds: (e.parks.tds || {}).tags || {} };
+        prices = { tdl: (e.parks.tdl || {}).prices || {}, tds: (e.parks.tds || {}).prices || {} };
+      }
       if (w && w.days) weather = w.days;
       if (h) history = { tdl: h.tdl || {}, tds: h.tds || {} };
       if (o && o.parks) observed = { tdl: o.parks.tdl || {}, tds: o.parks.tds || {} };

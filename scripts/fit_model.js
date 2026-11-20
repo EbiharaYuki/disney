@@ -26,6 +26,9 @@ const EVENTS = readJSON(path.join(ROOT, "site/data/events.json"), { parks: {} })
 const climFrom = (until) => (Object.keys(WX).length ? M.climatology(Object.fromEntries(Object.entries(WX).filter(([k]) => k < until))) : null);
 const BASE = M.FEATURES;
 
+const PRICES = Object.fromEntries(["tdl", "tds"].map((p) => [p, (EVENTS[p] && EVENTS[p].prices) || {}]));
+let PRICE_MEAN = {};
+
 function readHistory(park) {
   const lines = fs.readFileSync(path.join(ROOT, "data/history", `${park}.csv`), "utf8").trim().split("\n");
   const head = lines.shift().split(",");
@@ -33,11 +36,11 @@ function readHistory(park) {
   return lines.map((l) => {
     const c = l.split(",");
     const r = Object.fromEntries(head.map((h, i) => [h, c[i]]));
-    return { date: r.date, crowd: Number(r.crowd), hours: r.hours, park, ev: new Set(tags[r.date] || []) };
+    return { date: r.date, crowd: Number(r.crowd), hours: r.hours, park, ev: new Set(tags[r.date] || []), price: PRICES[park][r.date] ?? null };
   }).filter((r) => Number.isFinite(r.crowd) && r.hours !== "");
 }
 
-const feat = (r, clim) => M.features(M.parse(r.date), undefined, WX[r.date], clim, 1, r.park, r.ev);
+const feat = (r, clim) => M.features(M.parse(r.date), undefined, WX[r.date], clim, 1, r.park, r.ev, r.price, PRICE_MEAN[r.park]);
 
 // (XᵀX + λI) β = Xᵀy をガウスの消去法で解く。使う特徴量は names だけ
 function fit(rows, latestYear, clim, names) {
@@ -64,7 +67,7 @@ function fit(rows, latestYear, clim, names) {
   }
   const coefs = {};
   names.forEach((f, i) => (coefs[f] = Math.round((A[i][n] / A[i][i]) * 100) / 100));
-  return { coefs, latestYear, clim };
+  return { coefs, latestYear, clim, priceMean: PRICE_MEAN[rows[0].park] || null };
 }
 
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
@@ -77,7 +80,7 @@ function corr(a, b) {
 }
 const quantile = (arr, q) => { const s = [...arr].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
 const levelOf = (v, th) => { const i = th.findIndex((t) => v < t); return i === -1 ? th.length : i; };
-const pred = (model, r, useWeather) => M.predict(model, M.parse(r.date), useWeather ? WX[r.date] : null, 1, r.park, r.ev).score;
+const pred = (model, r, useWeather) => M.predict(model, M.parse(r.date), useWeather ? WX[r.date] : null, 1, r.park, r.ev, r.price).score;
 
 function evaluate(model, rows, thresholds, useWeather) {
   const p = rows.map((r) => pred(model, r, useWeather));
@@ -97,13 +100,35 @@ function evaluate(model, rows, thresholds, useWeather) {
 /** 要因の検証: 基本モデルの残差を要因ごとに集計し、さらに全候補を一緒に学習して係数も見る */
 function analyzeFactors(rows, latestYear, clim) {
   const base = fit(rows, latestYear, clim, BASE);
-  const resid = rows.map((r) => r.crowd - M.predict(base, M.parse(r.date), WX[r.date], 1, r.park, r.ev).score);
+  const resid = rows.map((r) => r.crowd - M.predict(base, M.parse(r.date), WX[r.date], 1, r.park, r.ev, r.price).score);
   const hits = Object.fromEntries(M.FACTOR_IDS.map((id) => [id, []]));
-  rows.forEach((r, i) => { const f = feat(r, clim); for (const id of M.FACTOR_IDS) if (f[id]) hits[id].push(resid[i]); });
-  const candidates = M.FACTOR_IDS.filter((id) => hits[id].length >= 5);
+  const xs = Object.fromEntries(M.FACTOR_IDS.map((id) => [id, []])); // 連続値の要因: [値, 残差]
+  rows.forEach((r, i) => {
+    const f = feat(r, clim);
+    for (const fa of M.FACTORS) {
+      if (fa.continuous) { if (fa.id === "p_price" ? r.price != null : f[fa.id]) xs[fa.id].push([f[fa.id] || 0, resid[i]]); }
+      else if (f[fa.id]) hits[fa.id].push(resid[i]);
+    }
+  });
+  for (const fa of M.FACTORS) if (fa.continuous) hits[fa.id] = xs[fa.id].map(([, e]) => e);
+  const candidates = M.FACTOR_IDS.filter((id) => hits[id].length >= (M.FACTORS.find((f) => f.id === id).continuous ? 30 : 5));
   const joint = fit(rows, latestYear, clim, [...BASE, ...candidates]);
   const factors = M.FACTORS.map((fa) => {
     const h = hits[fa.id], n = h.length;
+    if (fa.continuous) {
+      // 残差を値で回帰した傾き（1単位あたり何ポイント）
+      const pts = xs[fa.id];
+      if (pts.length < 30) return { id: fa.id, n: pts.length, status: pts.length ? "データ不足" : "データなし", continuous: true };
+      const mx = mean(pts.map((p) => p[0])), my = mean(pts.map((p) => p[1]));
+      const sxx = pts.reduce((s, [x]) => s + (x - mx) ** 2, 0);
+      const slope = pts.reduce((s, [x, y]) => s + (x - mx) * (y - my), 0) / sxx;
+      const rss = pts.reduce((s, [x, y]) => s + (y - my - slope * (x - mx)) ** 2, 0);
+      const se = Math.sqrt(rss / (pts.length - 2) / sxx), t = slope / se;
+      const coef = joint.coefs[fa.id];
+      const adopted = Math.abs(t) >= ADOPT.minT && coef != null && Math.sign(coef) === Math.sign(slope) && Math.abs(coef) >= 1;
+      return { id: fa.id, n: pts.length, effect: +slope.toFixed(1), ci: +(1.96 * se).toFixed(1), t: +t.toFixed(1), coef: coef ?? null, continuous: true,
+        status: adopted ? "採用" : Math.abs(t) < ADOPT.minT ? "効果はっきりせず" : "ほかの要因と区別できず" };
+    }
     if (n < 2) return { id: fa.id, n, status: n ? "データ不足" : "データなし" };
     const m = mean(h), se = sd(h) / Math.sqrt(n), t = se > 0 ? m / se : 0;
     const coef = joint.coefs[fa.id];
@@ -122,6 +147,8 @@ function train(rows, latestYear, clim) {
 const out = { generated_at: new Date().toISOString().slice(0, 16), source: "Queue-Times.com crowd calendar", adoptRule: ADOPT, parks: {} };
 const history = {};
 for (const park of ["tdl", "tds"]) {
+  const pv = Object.values(PRICES[park]);
+  PRICE_MEAN[park] = pv.length ? Math.round(mean(pv)) : null;
   const rows = readHistory(park);
   const last = rows[rows.length - 1].date;
   const latestYear = Number(last.slice(0, 4));

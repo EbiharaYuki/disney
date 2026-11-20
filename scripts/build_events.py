@@ -70,13 +70,27 @@ def derive_from_history(park: str):
     return out, short
 
 
+def read_prices() -> dict[str, dict[str, int]]:
+    """公式チケット価格（アーカイブ由来 → 手入力で上書き）。{park: {date: price}} と公式の時短営業日"""
+    prices = {p: {} for p in PARKS}
+    short = {p: set() for p in PARKS}
+    for name in ("prices.csv", "prices_manual.csv"):
+        for r in read_csv(ROOT / "data" / "official" / name):
+            if r.get("park") in prices and r.get("price"):
+                prices[r["park"]][r["date"]] = int(float(r["price"]))
+            if r.get("park") in short and r.get("close") and r["close"].zfill(5) < NORMAL_CLOSE:
+                short[r["park"]].add(r["date"])
+    return prices, short
+
+
 def main() -> None:
     manual = read_csv(ROOT / "data" / "factors" / "events.csv")
+    prices, official_short = read_prices()
     result = {}
     shorts = {}
     for park in PARKS:
         periods, short = derive_from_history(park)
-        shorts[park] = set(short)
+        shorts[park] = set(short) | official_short[park]
         result[park] = {"periods": periods, "tags": defaultdict(set), "items": []}
 
     for r in manual:
@@ -131,6 +145,7 @@ def main() -> None:
             "tags": {d: sorted(v) for d, v in sorted(r["tags"].items())},
             "periods": sorted(r["periods"], key=lambda p: p["start"]),
             "items": sorted(r["items"], key=lambda p: p["start"]),
+            "prices": dict(sorted(prices[park].items())),
         }
     path = ROOT / "site" / "data" / "events.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -139,7 +154,7 @@ def main() -> None:
         for v in out["parks"][park]["tags"].values():
             for t in v:
                 counts[t] += 1
-        print(park, len(out["parks"][park]["periods"]), "periods", dict(counts))
+        print(park, len(out["parks"][park]["periods"]), "periods", len(out["parks"][park]["prices"]), "prices", dict(counts))
 
 
 if __name__ == "__main__":

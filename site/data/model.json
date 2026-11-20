@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-20T14:40",
+ "generated_at": "2026-11-20T14:47",
  "source": "Queue-Times.com crowd calendar",
  "adoptRule": {
   "minDays": 8,
@@ -128,6 +128,7 @@
      "cold": 0.032
     }
    ],
+   "priceMean": null,
    "thresholds": [
     45,
     63,
@@ -356,6 +357,12 @@
      "t": 1.9,
      "coef": 6.69,
      "status": "効果はっきりせず"
+    },
+    {
+     "id": "p_price",
+     "n": 0,
+     "status": "データなし",
+     "continuous": true
     }
    ],
    "validation": {
@@ -532,6 +539,7 @@
      "cold": 0.032
     }
    ],
+   "priceMean": null,
    "thresholds": [
     51,
     67,
@@ -764,6 +772,12 @@
      "t": 2.5,
      "coef": 11.03,
      "status": "採用"
+    },
+    {
+     "id": "p_price",
+     "n": 0,
+     "status": "データなし",
+     "continuous": true
     }
    ],
    "validation": {

@@ -122,6 +122,9 @@
     { id: "e_show", group: "パーク", label: "新パレード・ショーの開始日", src: "定番", tag: "show" },
     { id: "e_short", group: "パーク", label: "時短営業（貸切など）", src: "データ", tag: "short" },
     { id: "e_other_short", group: "パーク", label: "もう片方のパークが時短営業", src: "ブログ", tag: "other_short" },
+    // 公式チケット価格（大人1デーパスポート）。平均価格との差、1,000円あたり。価格が分からない日は 0（平均並み）
+    { id: "p_price", group: "チケット", label: "公式チケット価格（平均との差・1,000円あたり）", src: "公式", continuous: true,
+      fn: (c) => (c.price != null && c.priceMean ? (c.price - c.priceMean) / 1000 : 0) },
   ];
   const FACTOR_IDS = FACTORS.map((f) => f.id);
 
@@ -139,7 +142,7 @@
   /** 日付 → { 特徴量id: 値 }（0 の特徴量は省略）。
    *  yearLevel: 年の特徴量に使う年（未来日は最新年を渡す）
    *  wx: その日の天気 {r, h, t}（無ければ null）、clim: 月ごとの平年値、weight: 天気の信頼度 0〜1 */
-  function features(dt, yearLevel, wx, clim, weight = 1, park = "tdl", ev = null) {
+  function features(dt, yearLevel, wx, clim, weight = 1, park = "tdl", ev = null, price = null, priceMean = null) {
     const f = {};
     f[MONTH_IDS[dt.getUTCMonth()]] = 1;
     const off = isOff(dt), nextOff = isOff(addDays(dt, 1)), prevOff = isOff(addDays(dt, -1));
@@ -160,8 +163,11 @@
     const y = yearLevel || dt.getUTCFullYear();
     const yid = `y_${Math.min(y, 2026)}`;
     if (YEAR_IDS.includes(yid)) f[yid] = 1;
-    const c = { dt, m: dt.getUTCMonth() + 1, d: dt.getUTCDate(), off, prevOff, nextOff, park, ev: ev || new Set() };
-    for (const fa of FACTORS) if (fa.tag ? c.ev.has(fa.tag) : fa.fn(c)) f[fa.id] = 1;
+    const c = { dt, m: dt.getUTCMonth() + 1, d: dt.getUTCDate(), off, prevOff, nextOff, park, ev: ev || new Set(), price, priceMean };
+    for (const fa of FACTORS) {
+      if (fa.continuous) { const v = fa.fn(c); if (Math.abs(v) > 1e-9) f[fa.id] = v; }
+      else if (fa.tag ? c.ev.has(fa.tag) : fa.fn(c)) f[fa.id] = 1;
+    }
     if (wx && clim && weight > 0) {
       const cl = clim[dt.getUTCMonth()];
       const put = (id, v) => { if (Math.abs(v) > 1e-9) f[id] = weight * v; };
@@ -176,9 +182,9 @@
 
   /** model = { coefs, latestYear, clim } → { score, parts: [{id, label, value}] }
    *  wx: その日の天気（実績か予報）、weight: 天気の信頼度（実績なら 1） */
-  function predict(model, dt, wx, weight = 1, park = "tdl", ev = null) {
+  function predict(model, dt, wx, weight = 1, park = "tdl", ev = null, price = null) {
     const y = Math.min(dt.getUTCFullYear(), model.latestYear || dt.getUTCFullYear());
-    const f = features(dt, y, wx, model.clim, weight, park, ev);
+    const f = features(dt, y, wx, model.clim, weight, park, ev, price, model.priceMean);
     let s = 0;
     const parts = [];
     for (const id in f) {
