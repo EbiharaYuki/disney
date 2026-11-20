@@ -192,6 +192,7 @@
       s += c * f[id];
       if (!id.startsWith("y_") && c !== 0) parts.push({ id, label: LABELS[id] || id, value: c * f[id] });
     }
+    if (model.levelAdj) { s += model.levelAdj; parts.push({ id: "level", label: "直近のズレ補正", value: model.levelAdj }); }
     return { score: Math.max(0, Math.min(100, Math.round(s))), parts };
   }
 

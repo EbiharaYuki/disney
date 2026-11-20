@@ -154,6 +154,19 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .badge.mid { background: color-mix(in srgb, var(--lv3) 26%, var(--surface)); color: var(--fg); }
 .badge.ng { background: color-mix(in srgb, var(--lv5) 20%, var(--surface)); color: var(--fg); }
 
+/* 答え合わせ */
+.tbl-wrap { overflow-x: auto; margin-top: 10px; }
+.tbl { border-collapse: collapse; width: 100%; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.tbl th, .tbl td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.tbl th:first-child, .tbl td:first-child { text-align: left; }
+.tbl th { color: var(--muted); font-weight: 700; font-size: .72rem; }
+.tbl .win { color: var(--accent); font-weight: 700; }
+.miss { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: .82rem; }
+.miss:last-child { border-bottom: 0; }
+.miss .top { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; }
+.miss .ctx { color: var(--muted); font-size: .74rem; }
+.miss .cause { font-size: .78rem; }
+
 /* 要因ランキング */
 .fx-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .fx { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
@@ -215,6 +228,11 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   <section class="card" id="accuracy">
     <h2>この予想はどれくらい当たる？</h2>
     <div id="acc-body"><p class="prose">読み込み中…</p></div>
+  </section>
+
+  <section class="card" id="loop">
+    <h2>毎日の答え合わせ</h2>
+    <div id="loop-body"><p class="prose">読み込み中…</p></div>
   </section>
 
   <section class="card" id="factors">
@@ -286,7 +304,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   const LEVEL_NAMES = ["激空き", "空いてる", "ふつう", "混雑", "激混み"];
   const PARK_NAMES = { tdl: "ランド", tds: "シー" };
 
-  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} }, weather = {}, events = { tdl: {}, tds: {} }, prices = { tdl: {}, tds: {} };
+  let model = null, history = { tdl: {}, tds: {} }, observed = { tdl: {}, tds: {} }, loop = null, weather = {}, events = { tdl: {}, tds: {} }, prices = { tdl: {}, tds: {} };
 
   const jstToday = () => { const t = new Date(Date.now() + 9 * 3600e3); return D(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); };
   const today = jstToday(), todayKey = key(today);
@@ -463,6 +481,35 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       <p class="prose">記念日（ミッキーの誕生日など）は年に1日しかないので、まだ数年分のデータしかありません。データが増えると、毎晩の学習で自動的に検証し直されます。</p>`;
   }
 
+  const TAG_JA = { event_eve: "イベント前日", event_first: "イベント開始1週間", event_last: "イベント最終週", merch: "グッズ発売日", open: "オープン1週間", show: "新ショー", short: "時短営業", other_short: "相手パーク時短" };
+  function renderLoop() {
+    const cfg = model.loop || {}, L = loop && loop.parks && loop.parks[state.park];
+    const fmtCfg = (c) => c ? `${c.halfLife ? `最近${c.halfLife}日を重めに` : "全期間を同じ重みで"}・${c.levelDays ? `直近${c.levelDays}日のズレで補正` : "ズレ補正なし"}・リッジ${c.ridge}` : "-";
+    let html = `<p class="prose">毎日、今日から60日先までの予想を記録しておき、実績が出たら答え合わせしています。大きく外れた日は毎朝Claudeが原因を調べ、統計的にはっきりした要因だけを予想に加えます。予想式の設定も、過去6か月を1か月ずつ予想し直すテストで、今よりはっきり当たる設定が見つかった時だけ自動で切り替えます。</p>`;
+    if (L) {
+      const row = (lead) => { const a = L.accuracy[lead], h = a.headToHead;
+        const win = h ? (h.ours < h.qt ? "ours" : h.ours > h.qt ? "qt" : "") : "";
+        return `<tr><td>${lead}日前の予想</td><td class="${win === "ours" ? "win" : ""}">${a.ours != null ? "±" + a.ours : "—"}</td><td>${a.oursN}日</td><td class="${win === "qt" ? "win" : ""}">${a.qt != null ? "±" + a.qt : "—"}</td><td>${a.qtN}日</td></tr>`; };
+      html += `<h3 style="margin-top:12px">何日前の予想がどれだけ当たったか（直近30日・平均のズレ）</h3>
+        <div class="tbl-wrap"><table class="tbl"><thead><tr><th></th><th>このサイト</th><th></th><th>Queue-Times</th><th></th></tr></thead>
+        <tbody>${[1, 7, 30].map(row).join("")}</tbody></table></div>
+        <p class="prose">予想の記録は2026年11月21日に始めたので、日数が少ないうちは参考程度に見てください。</p>`;
+      const misses = L.misses || [];
+      const inv = Object.fromEntries((loop.investigated || []).filter((r) => r.park === state.park).map((r) => [r.date, r]));
+      html += `<h3 style="margin-top:14px">最近2週間の大ハズレ（20ポイント以上）</h3>`;
+      html += misses.length ? misses.slice().reverse().map((x) => {
+        const c = inv[x.date];
+        const ctx = [x.holiday, x.weather, ...x.tags.map((t) => TAG_JA[t] || t), x.price ? `¥${x.price.toLocaleString()}` : ""].filter(Boolean).join("・");
+        return `<div class="miss"><div class="top"><span>${Number(x.date.slice(5, 7))}/${Number(x.date.slice(8))}（${x.weekday}）</span><span>予想 ${x.pred}% → 実績 ${x.actual}%（${x.err > 0 ? "+" : ""}${x.err}）</span></div>
+          <div class="ctx">${esc(ctx)}${x.predKind === "後から計算" ? "・予想は後から計算した値" : ""}</div>
+          <div class="cause">${c ? `推測される原因：${esc(c.cause)}${c.source ? `（<a href="${esc(c.source)}" target="_blank" rel="noopener">出典</a>）` : ""}` : `<span class="sub">原因はまだ調査していません</span>`}</div></div>`;
+      }).join("") : `<p class="prose">大ハズレはありませんでした。</p>`;
+    }
+    html += `<p class="prose">今の予想式の設定：${esc(fmtCfg(cfg.config))}。1か月ずつ予想し直すテストの平均のズレは ±${cfg.backtest ? cfg.backtest.avg : "-"}。</p>`;
+    if (cfg.switches && cfg.switches.length) html += `<p class="prose">設定の切り替え履歴：${cfg.switches.map((w) => `${w.date}（±${w.before} → ±${w.after}）`).join("、")}</p>`;
+    $("loop-body").innerHTML = html;
+  }
+
   function renderPark() {
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.park === state.park)));
   }
@@ -470,7 +517,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     const p = P(), n = Object.keys(observed.tdl).length + Object.keys(observed.tds).length;
     $("status").textContent = `学習データ：${p.trained.from}〜${p.trained.to}（${p.trained.n}日）／モデル更新 ${model.generated_at.replace("T", " ")} UTC` + (n ? `／自前の計測 ${n}日分` : "");
   }
-  function renderAll() { if (!model) return; renderPark(); renderCalendar(); renderDetail(); renderPicks(); renderAccuracy(); renderFactors(); renderStatus(); }
+  function renderAll() { if (!model) return; renderPark(); renderCalendar(); renderDetail(); renderPicks(); renderAccuracy(); renderLoop(); renderFactors(); renderStatus(); }
 
   document.querySelector(".seg").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-park]"); if (!b) return;
@@ -493,9 +540,10 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   renderLegend();
 
   const getJSON = (u) => fetch(u, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(u))));
-  Promise.all([getJSON("data/model.json"), getJSON("data/history.json").catch(() => null), getJSON("data/observed.json").catch(() => null), getJSON("data/weather.json").catch(() => null), getJSON("data/events.json").catch(() => null)])
-    .then(([m, h, o, w, e]) => {
+  Promise.all([getJSON("data/model.json"), getJSON("data/history.json").catch(() => null), getJSON("data/observed.json").catch(() => null), getJSON("data/weather.json").catch(() => null), getJSON("data/events.json").catch(() => null), getJSON("data/loop.json").catch(() => null)])
+    .then(([m, h, o, w, e, lp]) => {
       model = m;
+      loop = lp;
       if (e && e.parks) {
         events = { tdl: (e.parks.tdl || {}).tags || {}, tds: (e.parks.tds || {}).tags || {} };
         prices = { tdl: (e.parks.tdl || {}).prices || {}, tds: (e.parks.tds || {}).prices || {} };

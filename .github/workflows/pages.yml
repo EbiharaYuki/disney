@@ -5,6 +5,7 @@ on:
     paths:
       - "site/**"
       - "scripts/**"
+      - "data/factors/**"
       - ".github/workflows/pages.yml"
   schedule:
     # 毎日 JST 22:30：前日までの混雑実績と天気を取り込み、モデルを学習し直して再公開
@@ -44,6 +45,11 @@ jobs:
       - name: Fit model, test factors and validate
         run: node scripts/fit_model.js
 
+      - name: Record today's forecasts and check yesterday's
+        run: |
+          node scripts/loop_snapshot.js
+          node scripts/loop_evaluate.js > /dev/null
+
       - name: Build daily summary of own measurements
         run: python3 scripts/build_stats.py
 
@@ -51,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/history data/weather site/data
+          git add data/history data/weather data/loop site/data
           if ! git diff --cached --quiet; then
             git commit -m "data: crowd history and model $(TZ=Asia/Tokyo date +'%Y-%m-%d')"
             for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done

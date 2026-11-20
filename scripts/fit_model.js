@@ -5,6 +5,9 @@
  *    効果がはっきりした要因（日数8日以上、t値2以上、一緒に学習しても向きが同じ、2ポイント以上）だけを採用
  * 3. 採用した要因を加えてもう一度学習 → site/data/model.json
  * 4. 精度テスト: 2025年末までのデータだけで 1〜3 をやり直し、2026年の実績を予想して誤差を測る
+ * 5. 設定の自動調整: いくつかの設定（リッジの強さ・最近のデータの重み・直近のズレ補正）を、
+ *    「過去6か月を1か月ずつ、その前までのデータで予想する」テストで比べ、今の設定よりはっきり良ければ切り替える
+ *    （data/loop/config.json に記録）
  *
  * 入力: data/history/*.csv, site/data/weather.json, site/data/events.json
  * 使い方: node scripts/fit_model.js
@@ -17,8 +20,14 @@ const M = globalThis.CrowdModel;
 
 const ROOT = path.resolve(__dirname, "..");
 const TEST_START = "2026-01-01";
-const RIDGE = 0.5;
 const ADOPT = { minDays: 8, minT: 2, minEffect: 2 };
+const CONFIG_PATH = path.join(ROOT, "data/loop/config.json");
+const DEFAULT_CFG = { ridge: 0.5, halfLife: 0, levelDays: 0 };
+const CANDIDATE_CFGS = [];
+for (const ridge of [0.5, 3]) for (const halfLife of [0, 365]) for (const levelDays of [0, 45]) CANDIDATE_CFGS.push({ ridge, halfLife, levelDays });
+const SWITCH_MARGIN = 0.2; // 今の設定よりこれだけ以上ズレが小さい時だけ切り替える
+const FOLDS = 6;
+const cfgKey = (c) => `ridge=${c.ridge} halfLife=${c.halfLife} levelDays=${c.levelDays}`;
 
 const readJSON = (p, fallback) => (fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : fallback);
 const WX = Object.fromEntries(Object.entries(readJSON(path.join(ROOT, "site/data/weather.json"), { days: {} }).days).filter(([, w]) => !w.f));
@@ -43,18 +52,20 @@ function readHistory(park) {
 const feat = (r, clim) => M.features(M.parse(r.date), undefined, WX[r.date], clim, 1, r.park, r.ev, r.price, PRICE_MEAN[r.park]);
 
 // (XᵀX + λI) β = Xᵀy をガウスの消去法で解く。使う特徴量は names だけ
-function fit(rows, latestYear, clim, names) {
+function fit(rows, latestYear, clim, names, cfg = DEFAULT_CFG) {
   const n = names.length, idx = Object.fromEntries(names.map((f, i) => [f, i]));
   const A = Array.from({ length: n }, () => new Float64Array(n + 1));
+  const lastT = M.parse(rows[rows.length - 1].date).getTime();
   for (const r of rows) {
     const f = feat(r, clim);
+    const w = cfg.halfLife ? 0.5 ** ((lastT - M.parse(r.date).getTime()) / 864e5 / cfg.halfLife) : 1;
     const ids = Object.keys(f).filter((k) => k in idx);
     for (const a of ids) {
-      for (const b of ids) A[idx[a]][idx[b]] += f[a] * f[b];
-      A[idx[a]][n] += f[a] * r.crowd;
+      for (const b of ids) A[idx[a]][idx[b]] += w * f[a] * f[b];
+      A[idx[a]][n] += w * f[a] * r.crowd;
     }
   }
-  for (let i = 0; i < n; i++) A[i][i] += RIDGE;
+  for (let i = 0; i < n; i++) A[i][i] += cfg.ridge;
   for (let c = 0; c < n; c++) {
     let p = c;
     for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
@@ -98,8 +109,8 @@ function evaluate(model, rows, thresholds, useWeather) {
 }
 
 /** 要因の検証: 基本モデルの残差を要因ごとに集計し、さらに全候補を一緒に学習して係数も見る */
-function analyzeFactors(rows, latestYear, clim) {
-  const base = fit(rows, latestYear, clim, BASE);
+function analyzeFactors(rows, latestYear, clim, cfg = DEFAULT_CFG) {
+  const base = fit(rows, latestYear, clim, BASE, cfg);
   const resid = rows.map((r) => r.crowd - M.predict(base, M.parse(r.date), WX[r.date], 1, r.park, r.ev, r.price).score);
   const hits = Object.fromEntries(M.FACTOR_IDS.map((id) => [id, []]));
   const xs = Object.fromEntries(M.FACTOR_IDS.map((id) => [id, []])); // 連続値の要因: [値, 残差]
@@ -112,7 +123,7 @@ function analyzeFactors(rows, latestYear, clim) {
   });
   for (const fa of M.FACTORS) if (fa.continuous) hits[fa.id] = xs[fa.id].map(([, e]) => e);
   const candidates = M.FACTOR_IDS.filter((id) => hits[id].length >= (M.FACTORS.find((f) => f.id === id).continuous ? 30 : 5));
-  const joint = fit(rows, latestYear, clim, [...BASE, ...candidates]);
+  const joint = fit(rows, latestYear, clim, [...BASE, ...candidates], cfg);
   const factors = M.FACTORS.map((fa) => {
     const h = hits[fa.id], n = h.length;
     if (fa.continuous) {
@@ -139,17 +150,70 @@ function analyzeFactors(rows, latestYear, clim) {
   return { factors, adopted: factors.filter((f) => f.status === "採用").map((f) => f.id) };
 }
 
-function train(rows, latestYear, clim) {
-  const { factors, adopted } = analyzeFactors(rows, latestYear, clim);
-  return { model: fit(rows, latestYear, clim, [...BASE, ...adopted]), factors, adopted };
+function train(rows, latestYear, clim, cfg = DEFAULT_CFG) {
+  const { factors, adopted } = analyzeFactors(rows, latestYear, clim, cfg);
+  const model = fit(rows, latestYear, clim, [...BASE, ...adopted], cfg);
+  // 直近のズレ補正: 最後の levelDays 日の「実績 − 予想」の平均を、これからの予想に足す
+  model.levelAdj = 0;
+  if (cfg.levelDays) {
+    const tail = rows.slice(-cfg.levelDays);
+    model.levelAdj = +mean(tail.map((r) => r.crowd - pred(model, r, true))).toFixed(1);
+  }
+  return { model, factors, adopted };
 }
 
-const out = { generated_at: new Date().toISOString().slice(0, 16), source: "Queue-Times.com crowd calendar", adoptRule: ADOPT, parks: {} };
-const history = {};
+/** 過去 FOLDS か月を1か月ずつ「その前までのデータだけ」で学習して予想し、平均のズレを返す */
+function walkForward(rows, cfg) {
+  const months = [...new Set(rows.map((r) => r.date.slice(0, 7)))].sort();
+  const last = rows[rows.length - 1].date;
+  const testMonths = months.filter((m) => m < last.slice(0, 7)).slice(-FOLDS); // 今月（途中）は除く
+  const errs = [];
+  for (const m of testMonths) {
+    const tr = rows.filter((r) => r.date < `${m}-01`), te = rows.filter((r) => r.date.startsWith(m));
+    if (tr.length < 365 || !te.length) continue;
+    const { model } = train(tr, Number(tr[tr.length - 1].date.slice(0, 4)), climFrom(`${m}-01`), cfg);
+    for (const r of te) errs.push(Math.abs(pred(model, r, true) - r.crowd));
+  }
+  return errs.length ? +mean(errs).toFixed(2) : null;
+}
+
 for (const park of ["tdl", "tds"]) {
   const pv = Object.values(PRICES[park]);
   PRICE_MEAN[park] = pv.length ? Math.round(mean(pv)) : null;
-  const rows = readHistory(park);
+}
+
+// ---- 設定の自動調整 ----
+const loopState = readJSON(CONFIG_PATH, { config: DEFAULT_CFG, history: [] });
+const current = loopState.config || DEFAULT_CFG;
+const allRows = { tdl: readHistory("tdl"), tds: readHistory("tds") };
+const scored = CANDIDATE_CFGS.map((cfg) => {
+  const s = ["tdl", "tds"].map((p) => walkForward(allRows[p], cfg));
+  return { cfg, tdl: s[0], tds: s[1], avg: +((s[0] + s[1]) / 2).toFixed(2) };
+}).sort((a, b) => a.avg - b.avg);
+const curScore = scored.find((x) => cfgKey(x.cfg) === cfgKey(current)) || scored[0];
+const best = scored[0];
+let chosen = current;
+if (cfgKey(best.cfg) !== cfgKey(current) && best.avg <= curScore.avg - SWITCH_MARGIN) {
+  chosen = best.cfg;
+  loopState.history.push({ date: new Date().toISOString().slice(0, 10), from: current, to: best.cfg, before: curScore.avg, after: best.avg });
+  console.log(`config switched: ${cfgKey(current)} (${curScore.avg}) → ${cfgKey(best.cfg)} (${best.avg})`);
+}
+loopState.config = chosen;
+loopState.lastScores = scored.map((x) => ({ ...x.cfg, tdl: x.tdl, tds: x.tds, avg: x.avg }));
+loopState.updated = new Date().toISOString().slice(0, 16);
+fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+fs.writeFileSync(CONFIG_PATH, JSON.stringify(loopState, null, 1));
+const chosenScore = scored.find((x) => cfgKey(x.cfg) === cfgKey(chosen));
+console.log("walk-forward MAE by config:"); for (const x of scored) console.log(`  ${cfgKey(x.cfg)}  tdl ${x.tdl} tds ${x.tds} avg ${x.avg}${cfgKey(x.cfg) === cfgKey(chosen) ? "  ← 採用中" : ""}`);
+
+const out = {
+  generated_at: new Date().toISOString().slice(0, 16), source: "Queue-Times.com crowd calendar", adoptRule: ADOPT,
+  loop: { config: chosen, backtest: { tdl: chosenScore.tdl, tds: chosenScore.tds, avg: chosenScore.avg, folds: FOLDS }, switches: loopState.history.slice(-10) },
+  parks: {},
+};
+const history = {};
+for (const park of ["tdl", "tds"]) {
+  const rows = allRows[park];
   const last = rows[rows.length - 1].date;
   const latestYear = Number(last.slice(0, 4));
   const recent = rows.filter((r) => r.date > `${latestYear - 1}${last.slice(4)}`).map((r) => r.crowd);
@@ -158,15 +222,15 @@ for (const park of ["tdl", "tds"]) {
   // 精度テスト（2025年末までで学習・要因選び → 2026年を予想）
   const trainRows = rows.filter((r) => r.date < TEST_START), testRows = rows.filter((r) => r.date >= TEST_START);
   const climT = climFrom(TEST_START);
-  const baseT = fit(trainRows, latestYear - 1, climT, BASE);
-  const withT = train(trainRows, latestYear - 1, climT);
+  const baseT = fit(trainRows, latestYear - 1, climT, BASE, chosen);
+  const withT = train(trainRows, latestYear - 1, climT, chosen);
   const validationBase = { noWeather: evaluate(baseT, testRows, thresholds, false), weather: climT ? evaluate(baseT, testRows, thresholds, true) : null };
   const validation = evaluate(withT.model, testRows, thresholds, false);
   const validationWeather = climT ? evaluate(withT.model, testRows, thresholds, true) : null;
 
   // 本番（全データ）
   const climA = climFrom("9999");
-  const { model, factors, adopted } = train(rows, latestYear, climA);
+  const { model, factors, adopted } = train(rows, latestYear, climA, chosen);
   out.parks[park] = {
     ...model, thresholds, adopted, factors,
     validation, validationWeather, validationBase, adoptedInTest: withT.adopted,
