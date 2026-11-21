@@ -68,9 +68,10 @@ bash scripts/loop_score.sh   # → after
 ```bash
 node scripts/loop_snapshot.js && node scripts/loop_evaluate.js > /dev/null
 git add -A data/loop data/factors site
-git commit -m "loop: daily review $(TZ=Asia/Tokyo date +%F)"
+git commit -m "loop: daily review 2026-11-21"   # 日付はその日のものを直接書く（$(...) は使わない）
 git pull --rebase origin claude/disney-crowd-simulator-4t59oq && git push origin claude/disney-crowd-simulator-4t59oq
 ```
 
-- force push はしない。push が失敗したら `git pull --rebase` してもう一度（3回まで）
+- force push はしない。push が失敗したら `git pull --rebase origin claude/disney-crowd-simulator-4t59oq` してもう一度（3回まで）
+- コマンドは1行ずつ実行する（`&&` でつなげたり `$(...)` を使ったりしない）。許可されているコマンドは `.claude/settings.json` を参照
 - コミットメッセージにモデル名などは書かない
