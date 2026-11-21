@@ -127,7 +127,21 @@ def main() -> None:
         for it in result[park]["items"]:
             s = D(it["start"])
             if it["type"] == "merch":
-                tag_range(s, (D(it["end"]) - s).days + 1, "merch")
+                # 発売日・発売からの経過日数・発売後最初の土日
+                tag_range(s, 1, "merch")
+                tag_range(s + timedelta(days=1), 3, "merch_d1_3")
+                tag_range(s + timedelta(days=4), 4, "merch_d4_7")
+                for i in range(1, 8):
+                    d = s + timedelta(days=i)
+                    if d.weekday() >= 5:
+                        tags[iso(d)].add("merch_weekend")
+                        if d.weekday() == 5:
+                            tags[iso(d + timedelta(days=1))].add("merch_weekend")
+                        break
+            elif it["type"] == "restock":
+                tag_range(s, (D(it["end"]) - s).days + 1, "restock")
+            elif it["type"] == "soldout":
+                tag_range(s, (D(it["end"]) - s).days + 1, "soldout")
             elif it["type"] == "open":
                 tag_range(s, 7, "open")
             elif it["type"] == "show":

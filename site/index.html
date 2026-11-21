@@ -473,7 +473,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       ${Object.entries(groups).map(([g, list]) => `<div class="fx-group">${esc(g)}</div><ul class="fx-list">${list.sort((a, b) => order[a.status] - order[b.status] || Math.abs(b.effect || 0) - Math.abs(a.effect || 0)).map(row).join("")}</ul>`).join("")}
       <h3 style="margin-top:16px">まだ入っていない要因（データを集めれば検証できるもの）</h3>
       <ul class="todo">
-        <li>グッズ発売日・新ショーの開始日（要因カレンダーに日付を入れると、自動で検証が始まります）</li>
+        <li>グッズの発売日・発売からの経過日数・売り切れ・再入荷（候補には入っていて、発売日のデータを集めているところです。日数が8日以上たまると自動で判定されます）</li>
+        <li>新ショーの開始日（要因カレンダーに日付を入れると、自動で検証が始まります）</li>
         <li>チケット完売（価格はアーカイブに残っている日だけ検証しています）</li>
         <li>台風・大雨警報・電車の運休</li>
         <li>テレビやSNSで話題になった日、混雑予想サイトで「空いてる」と予想された日</li>
@@ -481,7 +482,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       <p class="prose">記念日（ミッキーの誕生日など）は年に1日しかないので、まだ数年分のデータしかありません。データが増えると、毎晩の学習で自動的に検証し直されます。</p>`;
   }
 
-  const TAG_JA = { event_eve: "イベント前日", event_first: "イベント開始1週間", event_last: "イベント最終週", merch: "グッズ発売日", open: "オープン1週間", show: "新ショー", short: "時短営業", other_short: "相手パーク時短" };
+  const TAG_JA = { event_eve: "イベント前日", event_first: "イベント開始1週間", event_last: "イベント最終週", merch: "グッズ発売日", merch_d1_3: "グッズ発売1〜3日後", merch_d4_7: "グッズ発売4〜7日後", merch_weekend: "グッズ発売後の土日", restock: "グッズ再入荷", soldout: "グッズ売り切れ中", open: "オープン1週間", show: "新ショー", short: "時短営業", other_short: "相手パーク時短" };
   function renderLoop() {
     const cfg = model.loop || {}, L = loop && loop.parks && loop.parks[state.park];
     const fmtCfg = (c) => c ? `${c.halfLife ? `最近${c.halfLife}日を重めに` : "全期間を同じ重みで"}・${c.levelDays ? `直近${c.levelDays}日のズレで補正` : "ズレ補正なし"}・リッジ${c.ridge}` : "-";
