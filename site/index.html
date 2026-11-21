@@ -264,7 +264,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       <section>
         <h3><span class="badge ok">実データ</span>天気の実績と予報</h3>
         <ul>
-          <li>Open-Meteo の舞浜地点のデータ。営業時間帯（9〜21時）の雨の時間・雨量・最高気温を使います</li>
+          <li>Open-Meteo の舞浜地点のデータ。営業時間帯（9〜21時）の雨の時間・雨量・最高気温に加えて、開園前（夜中〜朝9時）の雨も使います。来園するかは朝に決まるので、開園前に雨が降った日は日中晴れても空きます</li>
           <li>予報は7日先まで使い、先の日ほど影響を弱めています。8日以上先は平年並みの天気として予想します</li>
         </ul>
       </section>
@@ -339,7 +339,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   // 雨の時間が多い日（予報は降水確率も見る）に傘、猛暑日に太陽
   function wxGlyph(wx) {
     if (!wx) return "";
-    if (wx.h >= 3 || (wx.f && (wx.p || 0) >= 60 && wx.h >= 1)) return `<span class="wx" aria-hidden="true">☂</span>`;
+    if (wx.h >= 3 || (wx.pre || 0) >= 2 || (wx.f && (wx.p || 0) >= 60 && wx.h >= 1)) return `<span class="wx" aria-hidden="true">☂</span>`;
     if (wx.t >= M.HOT_C) return `<span class="wx" aria-hidden="true">☀</span>`;
     return "";
   }
@@ -348,7 +348,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       return x.past ? "" : `<div class="box">天気予報はまだ使っていません（7日より先の日は平年並みとして予想）。</div>`;
     }
     const w = x.wx;
-    const desc = `雨 ${w.h}時間・${w.r}mm、最高 ${w.t}℃${w.p != null ? `、降水確率 ${w.p}%` : ""}（9〜21時）`;
+    const desc = `雨 ${w.h}時間・${w.r}mm、最高 ${w.t}℃${w.p != null ? `、降水確率 ${w.p}%` : ""}（9〜21時）${(w.pre || 0) >= 2 ? `、開園前（夜中〜朝）の雨 ${w.pre}mm` : ""}`;
     if (!w.f) return `<div class="box"><b>天気（実績）</b>　${desc}</div>`;
     const note = x.wxWeight === 0 ? "予報が先すぎるので、予想には使っていません。"
       : x.wxWeight < 1 ? `先の予報は外れやすいので、天気の影響を${Math.round(x.wxWeight * 10)}割に弱めて計算しています。` : "";

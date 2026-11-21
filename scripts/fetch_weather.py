@@ -10,6 +10,10 @@
   rain_hours 1時間 0.5mm 以上降った時間数
   tmax       最高気温 (℃)
   pop        降水確率の最大 (%)。予報のみ
+来園するかどうかは朝に決まるので、雨の時間帯も分けて持つ（2026-11-18 の大ハズレの調査から追加）:
+  pre_mm     開園前 0:00〜8:59 の雨量 (mm)
+  am_hours   9:00〜12:59 に 0.5mm 以上降った時間数
+  gust       9:00〜20:59 の最大瞬間風速 (km/h)
 
 Weather data by Open-Meteo.com (CC BY 4.0)
 """
@@ -32,7 +36,8 @@ OUT_DIR = ROOT / "data" / "weather"
 DAILY = OUT_DIR / "maihama.csv"
 LOG = OUT_DIR / "forecast_log.csv"
 SITE = ROOT / "site" / "data" / "weather.json"
-FIELDS = ["date", "rain_mm", "rain_hours", "tmax", "pop", "kind"]
+FIELDS = ["date", "rain_mm", "rain_hours", "tmax", "pop", "kind", "pre_mm", "am_hours", "gust"]
+HOURLY = "precipitation,temperature_2m,wind_gusts_10m"
 
 
 def get(base: str, **params) -> dict:
@@ -49,15 +54,24 @@ def get(base: str, **params) -> dict:
 
 
 def daily_from_hourly(h: dict) -> dict[str, dict]:
-    acc = defaultdict(lambda: {"rain": 0.0, "hours": 0, "t": [], "pop": []})
+    acc = defaultdict(lambda: {"rain": 0.0, "hours": 0, "t": [], "pop": [], "pre": 0.0, "am": 0, "g": []})
     pops = h.get("precipitation_probability") or [None] * len(h["time"])
-    for ts, p, t, pop in zip(h["time"], h["precipitation"], h["temperature_2m"], pops):
+    gusts = h.get("wind_gusts_10m") or [None] * len(h["time"])
+    for ts, p, t, pop, g in zip(h["time"], h["precipitation"], h["temperature_2m"], pops, gusts):
         hour = int(ts[11:13])
-        if not (9 <= hour <= 20) or p is None or t is None:
+        if p is None or t is None:
             continue
         a = acc[ts[:10]]
+        if hour < 9:
+            a["pre"] += p
+            continue
+        if hour > 20:
+            continue
         a["rain"] += p
         a["hours"] += 1 if p >= 0.5 else 0
+        a["am"] += 1 if (p >= 0.5 and hour <= 12) else 0
+        if g is not None:
+            a["g"].append(g)
         a["t"].append(t)
         if pop is not None:
             a["pop"].append(pop)
@@ -70,6 +84,9 @@ def daily_from_hourly(h: dict) -> dict[str, dict]:
             "rain_hours": a["hours"],
             "tmax": round(max(a["t"]), 1),
             "pop": max(a["pop"]) if a["pop"] else "",
+            "pre_mm": round(a["pre"], 1),
+            "am_hours": a["am"],
+            "gust": round(max(a["g"]), 1) if a["g"] else "",
         }
     return out
 
@@ -83,6 +100,8 @@ def main() -> int:
     if DAILY.exists():
         with DAILY.open(encoding="utf-8") as f:
             rows = {r["date"]: r for r in csv.DictReader(f) if r["kind"] == "actual"}
+        if any("pre_mm" not in r or r["pre_mm"] in ("", None) for r in rows.values()):
+            rows = {}  # 列が増えたので全期間を取り直す
 
     # 実績: アーカイブは数日遅れなので、直近 10 日分は毎回取り直す
     last_actual = max(rows) if rows else None
@@ -90,7 +109,7 @@ def main() -> int:
     end = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     try:
         arc = get("https://archive-api.open-meteo.com/v1/archive", start_date=start, end_date=end,
-                  hourly="precipitation,temperature_2m")
+                  hourly=HOURLY)
         for d, v in daily_from_hourly(arc["hourly"]).items():
             rows[d] = {"date": d, **v, "pop": "", "kind": "actual"}
     except Exception as e:
@@ -98,20 +117,20 @@ def main() -> int:
 
     # 予報（と、アーカイブにまだ無い直近の実績）
     fc = get("https://api.open-meteo.com/v1/forecast", past_days=7, forecast_days=16,
-             hourly="precipitation,precipitation_probability,temperature_2m")
+             hourly=HOURLY + ",precipitation_probability")
     fdaily = daily_from_hourly(fc["hourly"])
     log_new = not LOG.exists()
     with LOG.open("a", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         if log_new:
-            w.writerow(["fetched_date", "date", "rain_mm", "rain_hours", "tmax", "pop"])
+            w.writerow(["fetched_date", "date", "rain_mm", "rain_hours", "tmax", "pop", "pre_mm", "am_hours", "gust"])
         for d, v in sorted(fdaily.items()):
             if d < today:
                 if d not in rows:
                     rows[d] = {"date": d, **v, "pop": "", "kind": "actual"}
             else:
                 rows[d] = {"date": d, **v, "kind": "forecast"}
-                w.writerow([today, d, v["rain_mm"], v["rain_hours"], v["tmax"], v["pop"]])
+                w.writerow([today, d, v["rain_mm"], v["rain_hours"], v["tmax"], v["pop"], v["pre_mm"], v["am_hours"], v["gust"]])
 
     with DAILY.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
@@ -122,7 +141,11 @@ def main() -> int:
     site = {}
     for d in sorted(rows):
         r = rows[d]
-        e = {"r": float(r["rain_mm"]), "h": int(r["rain_hours"]), "t": float(r["tmax"])}
+        e = {"r": float(r["rain_mm"]), "h": int(r["rain_hours"]), "t": float(r["tmax"]),
+             "pre": float(r["pre_mm"]), "a": int(r["am_hours"]), "g": float(r["gust"]) if r["gust"] != "" else 0}
+        prev = rows.get((datetime.strptime(d, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d"))
+        if prev:
+            e["py"] = int(prev["rain_hours"])  # 前日の雨の時間数（雨の翌日に人が流れるかを見るため）
         if r["kind"] == "forecast":
             e["f"] = 1
             if r["pop"] != "":

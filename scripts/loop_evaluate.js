@@ -36,6 +36,11 @@ const events = readJSON(path.join(ROOT, "site/data/events.json"), { parks: {} })
 const flog = readCSV(path.join(ROOT, "data/loop/forecast_log.csv"));
 const qlog = readCSV(path.join(ROOT, "data/history/qt_forecast_log.csv"));
 const investigated = readCSV(path.join(ROOT, "data/loop/investigated.csv"));
+const observed = readJSON(path.join(ROOT, "site/data/observed.json"), { parks: {} }).parks || {};
+const addDay = (k, n) => M.key(M.addDays(M.parse(k), n));
+// 前日に出ていた天気予報（予報が外れた日を見つけるため）: "予報した日|対象日" → {h}
+const fcast = new Map();
+for (const r of readCSV(path.join(ROOT, "data/weather/forecast_log.csv"))) fcast.set(`${r.fetched_date}|${r.date}`, { h: Number(r.rain_hours) });
 const invKey = new Set(investigated.map((r) => `${r.park}|${r.date}`));
 
 // (park|date|lead) → 予想
@@ -87,10 +92,35 @@ for (const park of ["tdl", "tds"]) {
     const back = M.predict(P, dt, weather[d] && !weather[d].f ? weather[d] : null, 1, park, new Set(ev[d] || []), prices[d] ?? null).score;
     const p = logged != null ? logged : back;
     const w = weather[d] || null;
+    // 手がかり: 機械的に分かることを先に並べる（点検はここから仮説を立てる）
+    const hints = [];
+    const other = park === "tdl" ? "tds" : "tdl";
+    const oa = (history[other] || {})[d];
+    if (oa != null) {
+      const op = M.predict(model.parks[other], dt, weather[d] && !weather[d].f ? weather[d] : null, 1, other, new Set(((events[other] || {}).tags || {})[d] || []), ((events[other] || {}).prices || {})[d] ?? null).score;
+      if (Math.abs(oa - op) >= 15 && Math.sign(oa - op) === Math.sign(a - p)) hints.push("もう片方のパークも同じ向きに外れた（パーク共通の原因：天気・暦・交通など）");
+      else if (Math.abs(a - p) >= BIG_MISS) hints.push("もう片方のパークはほぼ予想通り（このパークだけの原因：休止・貸切・イベントなど）");
+    }
+    if (w) {
+      if ((w.pre || 0) >= 2) hints.push(`開園前（0〜9時）に雨 ${w.pre}mm`);
+      if (w.h >= 1 && (w.a || 0) === 0) hints.push("雨は午後だけ");
+      if ((w.g || 0) >= 50) hints.push(`強風 ${w.g}km/h`);
+      if ((w.py || 0) >= 4 && w.h === 0) hints.push("前日が雨");
+    }
+    const fc = fcast.get(`${addDay(d, -1)}|${d}`);
+    if (fc && w && !w.f) {
+      if (fc.h >= 3 && w.h === 0) hints.push(`前日の予報は雨（${fc.h}時間）だったが降らなかった`);
+      if (fc.h === 0 && w.h >= 3) hints.push("前日の予報は雨なしだったが降った");
+    }
+    const prevYears = [1, 2, 3].map((n) => { const k = `${Number(d.slice(0, 4)) - n}${d.slice(4)}`; return act[k] != null ? `${k.slice(0, 4)}年 ${act[k]}%` : null; }).filter(Boolean);
+    if (prevYears.length) hints.push(`同じ日付の過去: ${prevYears.join("、")}`);
+    const o = (observed[park] || {})[d];
+    if (o) hints.push(`自前の計測: 平均待ち ${o.avg}分・ピーク ${o.peak}分`);
     days.push({
+      hints,
       date: d, actual: a, pred: p, predKind: logged != null ? "前日の予想" : "後から計算", err: a - p,
       qt: near(qt, park, d, 1), weekday: M.WD[dt.getUTCDay()], holiday: M.holidayName(dt) || "",
-      weather: w ? `雨${w.h}時間・${w.r}mm・最高${w.t}℃` : "", tags: ev[d] || [], price: prices[d] ?? null,
+      weather: w ? `雨${w.h}時間・${w.r}mm・最高${w.t}℃${(w.pre || 0) >= 2 ? `・開園前の雨${w.pre}mm` : ""}` : "", tags: ev[d] || [], price: prices[d] ?? null,
       investigated: invKey.has(`${park}|${d}`),
     });
   }
@@ -111,6 +141,12 @@ for (const park of ["tdl", "tds"]) {
       const ctx = [`${x.weekday}曜`, x.holiday, x.weather, x.tags.join("/"), x.price ? `¥${x.price}` : ""].filter(Boolean).join("・");
       report.push(`| ${x.date} | ${x.actual} | ${x.pred} | ${x.err > 0 ? "+" : ""}${x.err} | ${x.predKind} | ${x.qt ?? "-"} | ${ctx} | ${x.investigated ? "済" : "**未**"} |`);
     }
+    report.push(``, `#### 手がかり（自動で分かること）`, ``);
+    for (const x of misses) report.push(`- **${x.date}**: ${x.hints.length ? x.hints.join(" ／ ") : "特になし"}`);
+    // 外れ方のまとまり: 連続して同じ向きに外れているなら、個別の原因ではなく全体の水準のズレ
+    const signs = days.slice(-7).map((x) => Math.sign(x.err));
+    const neg = signs.filter((v) => v < 0).length, pos = signs.filter((v) => v > 0).length;
+    if (neg >= 6 || pos >= 6) report.push(``, `> 直近7日のうち${Math.max(neg, pos)}日が${neg > pos ? "予想より空き" : "予想より混み"}。個別の原因より、全体の水準（時期の傾向）のズレを疑うこと。`);
   }
   report.push(``);
 }
