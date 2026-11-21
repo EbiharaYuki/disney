@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git fetch origin claude/disney-crowd-simulator-4t59oq*)",
+      "Bash(git checkout claude/disney-crowd-simulator-4t59oq)",
+      "Bash(git pull --rebase origin claude/disney-crowd-simulator-4t59oq*)",
+      "Bash(git stash)",
+      "Bash(git stash pop)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push origin claude/disney-crowd-simulator-4t59oq)",
+      "Bash(bash scripts/loop_score.sh)",
+      "Bash(node scripts/*)",
+      "Bash(python3 scripts/*)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)"
+    ]
+  }
+}
