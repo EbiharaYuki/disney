@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-22T01:29",
+ "generated_at": "2026-11-22T20:27",
  "source": "Queue-Times.com crowd calendar",
  "adoptRule": {
   "minDays": 8,
@@ -39,55 +39,55 @@
  "parks": {
   "tdl": {
    "coefs": {
-    "m_1": 20.05,
-    "m_2": 28.38,
-    "m_3": 29.94,
+    "m_1": 20.04,
+    "m_2": 28.37,
+    "m_3": 29.93,
     "m_4": 17.39,
     "m_5": 15.75,
-    "m_6": 15.01,
-    "m_7": 2.97,
+    "m_6": 15.02,
+    "m_7": 2.96,
     "m_8": 4.05,
-    "m_9": 3.06,
-    "m_10": 18.79,
-    "m_11": 31.38,
-    "m_12": 37.31,
+    "m_9": 3.05,
+    "m_10": 18.8,
+    "m_11": 31.34,
+    "m_12": 37.26,
     "d_offoff": 32.39,
-    "d_offwork": 18.23,
-    "d_workoff": 15.9,
-    "d_mon": 15.61,
-    "d_tue": 3.68,
-    "d_thu": 7.4,
-    "d_renkyu_mid": 9.82,
-    "d_renkyu_last": 3.35,
-    "p_newyear": 5.14,
-    "p_spring": 26.77,
-    "p_gw": 2.47,
+    "d_offwork": 18.22,
+    "d_workoff": 15.89,
+    "d_mon": 15.6,
+    "d_tue": 3.69,
+    "d_thu": 7.41,
+    "d_renkyu_mid": 9.93,
+    "d_renkyu_last": 3.37,
+    "p_newyear": 5.08,
+    "p_spring": 26.76,
+    "p_gw": 2.43,
     "p_summer": 13.61,
-    "p_obon": 14.67,
-    "p_halloween": 8.7,
-    "p_xmas": 13.85,
-    "p_xmas_day": 4.46,
-    "y_2024": 19.92,
+    "p_obon": 14.66,
+    "p_halloween": 8.68,
+    "p_xmas": 13.9,
+    "p_xmas_day": 4.45,
+    "y_2024": 19.93,
     "y_2025": 18.05,
     "y_2026": 28.14,
     "w_rain_hours": -1.95,
     "w_rain_hours_off": -0.8,
-    "w_heavy": -1.78,
+    "w_heavy": -1.77,
     "w_hot": -13.42,
-    "w_cold": -5.48,
-    "w_pre": -9.16,
+    "w_cold": -5.47,
+    "w_pre": -9.17,
     "w_am": -0.08,
     "w_gust": -0.37,
     "f_tobiishi": 11.01,
-    "f_after_renkyu": 9.03,
-    "f_kenmin": 7.56,
-    "f_school_trip": 7.39,
-    "f_grad_trip": 15.54,
-    "f_lunar_ny": 5.81,
-    "e_merch_d13": -8.09,
-    "e_short": -17.73,
-    "e_other_short": 5.7,
-    "p_price": -5.14
+    "f_after_renkyu": 9.04,
+    "f_kenmin": 7.54,
+    "f_school_trip": 7.4,
+    "f_grad_trip": 15.55,
+    "f_lunar_ny": 5.8,
+    "e_merch_d13": -7.87,
+    "e_short": -17.71,
+    "e_other_short": 5.71,
+    "p_price": -5.12
    },
    "latestYear": 2026,
    "clim": [
@@ -182,13 +182,13 @@
      "gust": 0.153
     },
     {
-     "h": 0.613,
+     "h": 0.607,
      "heavy": 0.036,
      "hot": 0,
      "cold": 0.009,
-     "pre": 0.126,
-     "am": 0.162,
-     "gust": 0.171
+     "pre": 0.125,
+     "am": 0.161,
+     "gust": 0.17
     },
     {
      "h": 0.204,
@@ -201,7 +201,7 @@
     }
    ],
    "priceMean": 9665,
-   "levelAdj": -5.1,
+   "levelAdj": -4.5,
    "thresholds": [
     45,
     63,
@@ -227,7 +227,7 @@
      "effect": 13.8,
      "ci": 10.8,
      "t": 2.5,
-     "coef": 10.81,
+     "coef": 10.82,
      "status": "採用"
     },
     {
@@ -236,25 +236,25 @@
      "effect": 12.8,
      "ci": 8,
      "t": 3.1,
-     "coef": 9.33,
+     "coef": 9.34,
      "status": "採用"
     },
     {
      "id": "f_payday",
      "n": 94,
-     "effect": 3.3,
+     "effect": 3.4,
      "ci": 3.8,
      "t": 1.7,
-     "coef": 1.68,
+     "coef": 1.69,
      "status": "効果はっきりせず"
     },
     {
      "id": "f_kenmin",
      "n": 15,
-     "effect": 14.8,
+     "effect": 14.9,
      "ci": 8.8,
      "t": 3.3,
-     "coef": 8.5,
+     "coef": 8.47,
      "status": "採用"
     },
     {
@@ -262,7 +262,7 @@
      "n": 20,
      "effect": 2.9,
      "ci": 10.3,
-     "t": 0.5,
+     "t": 0.6,
      "coef": 2.05,
      "status": "効果はっきりせず"
     },
@@ -272,7 +272,7 @@
      "effect": 3.5,
      "ci": 4.9,
      "t": 1.4,
-     "coef": 1.73,
+     "coef": 1.74,
      "status": "効果はっきりせず"
     },
     {
@@ -281,7 +281,7 @@
      "effect": -3.9,
      "ci": 6,
      "t": -1.3,
-     "coef": -4.7,
+     "coef": -4.68,
      "status": "効果はっきりせず"
     },
     {
@@ -290,16 +290,16 @@
      "effect": 8.6,
      "ci": 4.5,
      "t": 3.7,
-     "coef": 6.62,
+     "coef": 6.63,
      "status": "採用"
     },
     {
      "id": "f_exam",
      "n": 89,
-     "effect": -2.7,
-     "ci": 3.3,
+     "effect": -2.8,
+     "ci": 3.4,
      "t": -1.6,
-     "coef": 3.6,
+     "coef": 3.62,
      "status": "効果はっきりせず"
     },
     {
@@ -307,8 +307,8 @@
      "n": 99,
      "effect": 10.7,
      "ci": 2.6,
-     "t": 8.1,
-     "coef": 16.05,
+     "t": 8,
+     "coef": 16.07,
      "status": "採用"
     },
     {
@@ -317,13 +317,13 @@
      "effect": 1.9,
      "ci": 4.5,
      "t": 0.8,
-     "coef": -1.1,
+     "coef": -1.12,
      "status": "効果はっきりせず"
     },
     {
      "id": "f_dec_first",
      "n": 15,
-     "effect": -3.1,
+     "effect": -3,
      "ci": 7.7,
      "t": -0.8,
      "coef": -2.18,
@@ -335,7 +335,7 @@
      "effect": 1.5,
      "ci": 9.4,
      "t": 0.3,
-     "coef": -11.4,
+     "coef": -11.38,
      "status": "効果はっきりせず"
     },
     {
@@ -343,15 +343,15 @@
      "n": 36,
      "effect": 5.5,
      "ci": 4.8,
-     "t": 2.3,
-     "coef": 5.79,
+     "t": 2.2,
+     "coef": 5.78,
      "status": "採用"
     },
     {
      "id": "f_mickey_bday",
      "n": 4,
-     "effect": -13,
-     "ci": 26.2,
+     "effect": -12.8,
+     "ci": 25.9,
      "t": -1,
      "coef": null,
      "status": "データ不足"
@@ -380,16 +380,16 @@
      "effect": -7,
      "ci": 8.4,
      "t": -1.6,
-     "coef": -6.39,
+     "coef": -6.38,
      "status": "効果はっきりせず"
     },
     {
      "id": "e_event_first",
      "n": 103,
-     "effect": 1.7,
+     "effect": 1.8,
      "ci": 3.4,
      "t": 1,
-     "coef": 1.2,
+     "coef": 1.14,
      "status": "効果はっきりせず"
     },
     {
@@ -412,29 +412,29 @@
     },
     {
      "id": "e_merch_d13",
-     "n": 8,
-     "effect": -12.6,
-     "ci": 11.4,
-     "t": -2.2,
-     "coef": -9.09,
+     "n": 9,
+     "effect": -11.1,
+     "ci": 10.5,
+     "t": -2.1,
+     "coef": -8.77,
      "status": "採用"
     },
     {
      "id": "e_merch_d47",
      "n": 8,
-     "effect": -9,
-     "ci": 14.6,
+     "effect": -8.8,
+     "ci": 14.8,
      "t": -1.2,
-     "coef": -7.96,
+     "coef": -8.12,
      "status": "効果はっきりせず"
     },
     {
      "id": "e_merch_wkend",
-     "n": 5,
-     "effect": -10,
-     "ci": 16.6,
+     "n": 6,
+     "effect": -8.3,
+     "ci": 14,
      "t": -1.2,
-     "coef": -2.12,
+     "coef": -1.62,
      "status": "データ不足"
     },
     {
@@ -463,7 +463,7 @@
      "effect": -16.3,
      "ci": 6.8,
      "t": -4.7,
-     "coef": -17.4,
+     "coef": -17.38,
      "status": "採用"
     },
     {
@@ -472,33 +472,33 @@
      "effect": 7.1,
      "ci": 6,
      "t": 2.3,
-     "coef": 5.02,
+     "coef": 5.03,
      "status": "採用"
     },
     {
      "id": "p_price",
-     "n": 962,
-     "effect": -3.4,
+     "n": 963,
+     "effect": -3.3,
      "ci": 1.2,
-     "t": -5.3,
-     "coef": -5.42,
+     "t": -5.2,
+     "coef": -5.4,
      "continuous": true,
      "status": "採用"
     }
    ],
    "validation": {
-    "n": 325,
+    "n": 326,
     "from": "2026-01-01",
-    "to": "2026-11-21",
-    "mae": 17.9,
+    "to": "2026-11-22",
+    "mae": 17.8,
     "corr": 0.5,
     "levelWithin1": 0.73,
     "quietPrecision": 0.6
    },
    "validationWeather": {
-    "n": 325,
+    "n": 326,
     "from": "2026-01-01",
-    "to": "2026-11-21",
+    "to": "2026-11-22",
     "mae": 16.5,
     "corr": 0.61,
     "levelWithin1": 0.74,
@@ -506,19 +506,19 @@
    },
    "validationBase": {
     "noWeather": {
-     "n": 325,
+     "n": 326,
      "from": "2026-01-01",
-     "to": "2026-11-21",
+     "to": "2026-11-22",
      "mae": 19.8,
      "corr": 0.44,
      "levelWithin1": 0.68,
      "quietPrecision": 0.56
     },
     "weather": {
-     "n": 325,
+     "n": 326,
      "from": "2026-01-01",
-     "to": "2026-11-21",
-     "mae": 18.6,
+     "to": "2026-11-22",
+     "mae": 18.5,
      "corr": 0.56,
      "levelWithin1": 0.7,
      "quietPrecision": 0.58
@@ -535,59 +535,60 @@
    ],
    "trained": {
     "from": "2023-01-01",
-    "to": "2026-11-21",
-    "n": 1421
+    "to": "2026-11-22",
+    "n": 1422
    }
   },
   "tds": {
    "coefs": {
-    "m_1": 13.9,
-    "m_2": 21.84,
+    "m_1": 13.89,
+    "m_2": 21.81,
     "m_3": 28.83,
-    "m_4": 20.66,
-    "m_5": 19.04,
-    "m_6": 22.17,
-    "m_7": 10.13,
-    "m_8": 7.75,
-    "m_9": 12.52,
-    "m_10": 19.05,
-    "m_11": 36.71,
-    "m_12": 32.89,
-    "d_offoff": 25.82,
-    "d_offwork": 10.51,
-    "d_workoff": 16.01,
-    "d_mon": 15.28,
-    "d_tue": 3.53,
-    "d_thu": 10.74,
-    "d_renkyu_mid": 15.22,
-    "d_renkyu_last": 3.65,
-    "p_newyear": 10.01,
-    "p_spring": 25.63,
-    "p_gw": -0.13,
-    "p_summer": 13.59,
-    "p_obon": 12.22,
-    "p_halloween": 3.5,
-    "p_xmas": 12.23,
-    "p_xmas_day": -1,
-    "y_2024": 11.59,
-    "y_2025": 22.07,
-    "y_2026": 32.69,
-    "w_rain_hours": -2.01,
-    "w_rain_hours_off": -0.46,
+    "m_4": 20.62,
+    "m_5": 19.01,
+    "m_6": 22.08,
+    "m_7": 10.1,
+    "m_8": 7.71,
+    "m_9": 12.51,
+    "m_10": 18.95,
+    "m_11": 36.62,
+    "m_12": 33.08,
+    "d_offoff": 25.89,
+    "d_offwork": 10.59,
+    "d_workoff": 16.02,
+    "d_mon": 15.29,
+    "d_tue": 3.54,
+    "d_thu": 10.73,
+    "d_renkyu_mid": 14.75,
+    "d_renkyu_last": 3.64,
+    "p_newyear": 10.23,
+    "p_spring": 25.66,
+    "p_gw": 0.01,
+    "p_summer": 13.62,
+    "p_obon": 12.23,
+    "p_halloween": 3.52,
+    "p_xmas": 11.97,
+    "p_xmas_day": -0.94,
+    "y_2024": 11.61,
+    "y_2025": 22.1,
+    "y_2026": 32.67,
+    "w_rain_hours": -2,
+    "w_rain_hours_off": -0.45,
     "w_heavy": -1.71,
-    "w_hot": -12.82,
+    "w_hot": -12.83,
     "w_cold": -3.84,
-    "w_pre": -8.03,
-    "w_am": -0.91,
-    "w_gust": 1.03,
-    "f_tobiishi": 9.47,
-    "f_after_renkyu": 11.48,
-    "f_gw_after": -5.93,
-    "f_grad_trip": 15.08,
-    "f_lunar_ny": 6.05,
-    "e_short": -23.11,
-    "e_other_short": 9.07,
-    "p_price": -5.84
+    "w_pre": -8,
+    "w_am": -0.94,
+    "w_gust": 1.06,
+    "f_tobiishi": 9.48,
+    "f_after_renkyu": 11.49,
+    "f_kenmin": 1.98,
+    "f_gw_after": -5.95,
+    "f_grad_trip": 15.03,
+    "f_lunar_ny": 6.08,
+    "e_short": -23.09,
+    "e_other_short": 9.01,
+    "p_price": -5.92
    },
    "latestYear": 2026,
    "clim": [
@@ -682,13 +683,13 @@
      "gust": 0.153
     },
     {
-     "h": 0.613,
+     "h": 0.607,
      "heavy": 0.036,
      "hot": 0,
      "cold": 0.009,
-     "pre": 0.126,
-     "am": 0.162,
-     "gust": 0.171
+     "pre": 0.125,
+     "am": 0.161,
+     "gust": 0.17
     },
     {
      "h": 0.204,
@@ -701,7 +702,7 @@
     }
    ],
    "priceMean": 9665,
-   "levelAdj": -6.1,
+   "levelAdj": -5.8,
    "thresholds": [
     51,
     67,
@@ -711,6 +712,7 @@
    "adopted": [
     "f_tobiishi",
     "f_after_renkyu",
+    "f_kenmin",
     "f_gw_after",
     "f_grad_trip",
     "f_lunar_ny",
@@ -722,19 +724,19 @@
     {
      "id": "f_tobiishi",
      "n": 9,
-     "effect": 19.3,
-     "ci": 10.1,
+     "effect": 19.2,
+     "ci": 10,
      "t": 3.8,
-     "coef": 9.29,
+     "coef": 9.27,
      "status": "採用"
     },
     {
      "id": "f_after_renkyu",
      "n": 38,
-     "effect": 15.9,
+     "effect": 15.8,
      "ci": 8,
      "t": 3.9,
-     "coef": 11.29,
+     "coef": 11.28,
      "status": "採用"
     },
     {
@@ -749,11 +751,11 @@
     {
      "id": "f_kenmin",
      "n": 15,
-     "effect": 10.4,
+     "effect": 10.5,
      "ci": 10.2,
      "t": 2,
-     "coef": 2.16,
-     "status": "効果はっきりせず"
+     "coef": 2.19,
+     "status": "採用"
     },
     {
      "id": "f_summer_end",
@@ -761,16 +763,16 @@
      "effect": 5.2,
      "ci": 8.5,
      "t": 1.2,
-     "coef": 4.59,
+     "coef": 4.62,
      "status": "効果はっきりせず"
     },
     {
      "id": "f_new_term",
      "n": 40,
-     "effect": -1.7,
+     "effect": -1.8,
      "ci": 4.9,
      "t": -0.7,
-     "coef": -0.88,
+     "coef": -0.89,
      "status": "効果はっきりせず"
     },
     {
@@ -779,7 +781,7 @@
      "effect": -7.4,
      "ci": 5.2,
      "t": -2.8,
-     "coef": -4.78,
+     "coef": -4.8,
      "status": "採用"
     },
     {
@@ -787,17 +789,17 @@
      "n": 77,
      "effect": 3.1,
      "ci": 4.8,
-     "t": 1.3,
-     "coef": 3.68,
+     "t": 1.2,
+     "coef": 3.66,
      "status": "効果はっきりせず"
     },
     {
      "id": "f_exam",
      "n": 89,
-     "effect": 1.6,
+     "effect": 1.4,
      "ci": 3.5,
-     "t": 0.9,
-     "coef": 1.4,
+     "t": 0.8,
+     "coef": 1.39,
      "status": "効果はっきりせず"
     },
     {
@@ -805,14 +807,14 @@
      "n": 99,
      "effect": 12.8,
      "ci": 3,
-     "t": 8.3,
-     "coef": 15.77,
+     "t": 8.2,
+     "coef": 15.74,
      "status": "採用"
     },
     {
      "id": "f_univ_sep",
      "n": 55,
-     "effect": 3.4,
+     "effect": 3.3,
      "ci": 5,
      "t": 1.3,
      "coef": 1.39,
@@ -824,33 +826,33 @@
      "effect": 0.2,
      "ci": 6.8,
      "t": 0.1,
-     "coef": -3.55,
+     "coef": -3.54,
      "status": "効果はっきりせず"
     },
     {
      "id": "f_china_gw",
      "n": 28,
-     "effect": 5.2,
+     "effect": 5.1,
      "ci": 7.6,
      "t": 1.3,
-     "coef": -7.83,
+     "coef": -7.88,
      "status": "効果はっきりせず"
     },
     {
      "id": "f_lunar_ny",
      "n": 36,
-     "effect": 11.3,
+     "effect": 11.2,
      "ci": 5.1,
-     "t": 4.4,
-     "coef": 5.91,
+     "t": 4.3,
+     "coef": 5.93,
      "status": "採用"
     },
     {
      "id": "f_mickey_bday",
      "n": 4,
-     "effect": -3.3,
-     "ci": 20.8,
-     "t": -0.3,
+     "effect": -2.5,
+     "ci": 20.5,
+     "t": -0.2,
      "coef": null,
      "status": "データ不足"
     },
@@ -875,19 +877,19 @@
     {
      "id": "e_event_eve",
      "n": 11,
-     "effect": -5.4,
+     "effect": -5.3,
      "ci": 9.9,
-     "t": -1.1,
-     "coef": -3.99,
+     "t": -1,
+     "coef": -3.94,
      "status": "効果はっきりせず"
     },
     {
      "id": "e_event_first",
      "n": 77,
-     "effect": 4.3,
+     "effect": 4.4,
      "ci": 4.5,
      "t": 1.9,
-     "coef": 3.25,
+     "coef": 3.36,
      "status": "効果はっきりせず"
     },
     {
@@ -902,37 +904,37 @@
     {
      "id": "e_merch",
      "n": 7,
-     "effect": -4.4,
+     "effect": -4.3,
      "ci": 13.4,
      "t": -0.6,
-     "coef": -1.23,
+     "coef": -1.21,
      "status": "データ不足"
     },
     {
      "id": "e_merch_d13",
-     "n": 20,
+     "n": 21,
      "effect": -1.1,
-     "ci": 8.9,
-     "t": -0.2,
-     "coef": -3.5,
+     "ci": 8.5,
+     "t": -0.3,
+     "coef": -3.71,
      "status": "効果はっきりせず"
     },
     {
      "id": "e_merch_d47",
      "n": 24,
-     "effect": -0.5,
+     "effect": -0.3,
      "ci": 7.3,
      "t": -0.1,
-     "coef": -3.47,
+     "coef": -3.32,
      "status": "効果はっきりせず"
     },
     {
      "id": "e_merch_wkend",
-     "n": 13,
-     "effect": 0.2,
-     "ci": 11.4,
+     "n": 14,
+     "effect": 0.1,
+     "ci": 10.6,
      "t": 0,
-     "coef": -0.45,
+     "coef": -0.95,
      "status": "効果はっきりせず"
     },
     {
@@ -951,7 +953,7 @@
      "effect": -33.3,
      "ci": 10,
      "t": -6.5,
-     "coef": -9.75,
+     "coef": -9.74,
      "status": "データ不足"
     },
     {
@@ -971,55 +973,55 @@
     {
      "id": "e_other_short",
      "n": 35,
-     "effect": 14.1,
-     "ci": 6.2,
+     "effect": 14,
+     "ci": 6.1,
      "t": 4.5,
-     "coef": 9.44,
+     "coef": 9.42,
      "status": "採用"
     },
     {
      "id": "p_price",
-     "n": 962,
+     "n": 963,
      "effect": -2.7,
      "ci": 1.3,
-     "t": -4.1,
-     "coef": -5.73,
+     "t": -4,
+     "coef": -5.78,
      "continuous": true,
      "status": "採用"
     }
    ],
    "validation": {
-    "n": 325,
+    "n": 326,
     "from": "2026-01-01",
-    "to": "2026-11-21",
-    "mae": 19.2,
-    "corr": 0.4,
+    "to": "2026-11-22",
+    "mae": 19.1,
+    "corr": 0.41,
     "levelWithin1": 0.64,
     "quietPrecision": 0.51
    },
    "validationWeather": {
-    "n": 325,
+    "n": 326,
     "from": "2026-01-01",
-    "to": "2026-11-21",
-    "mae": 17.8,
-    "corr": 0.55,
+    "to": "2026-11-22",
+    "mae": 17.7,
+    "corr": 0.56,
     "levelWithin1": 0.69,
     "quietPrecision": 0.55
    },
    "validationBase": {
     "noWeather": {
-     "n": 325,
+     "n": 326,
      "from": "2026-01-01",
-     "to": "2026-11-21",
-     "mae": 19.9,
+     "to": "2026-11-22",
+     "mae": 19.8,
      "corr": 0.29,
      "levelWithin1": 0.61,
      "quietPrecision": 0.48
     },
     "weather": {
-     "n": 325,
+     "n": 326,
      "from": "2026-01-01",
-     "to": "2026-11-21",
+     "to": "2026-11-22",
      "mae": 18.6,
      "corr": 0.46,
      "levelWithin1": 0.65,
@@ -1037,8 +1039,8 @@
    ],
    "trained": {
     "from": "2023-01-01",
-    "to": "2026-11-21",
-    "n": 1421
+    "to": "2026-11-22",
+    "n": 1422
    }
   }
  }
