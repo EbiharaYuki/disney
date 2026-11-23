@@ -24,68 +24,68 @@
  "lastScores": [
   {
    "ridge": 3,
-   "halfLife": 365,
+   "halfLife": 0,
    "levelDays": 45,
-   "tdl": 16.13,
-   "tds": 16.39,
-   "avg": 16.26
+   "tdl": 16.46,
+   "tds": 16.24,
+   "avg": 16.35
   },
   {
    "ridge": 3,
-   "halfLife": 0,
+   "halfLife": 365,
    "levelDays": 45,
-   "tdl": 16.35,
-   "tds": 16.24,
-   "avg": 16.3
+   "tdl": 16.44,
+   "tds": 16.46,
+   "avg": 16.45
   },
   {
    "ridge": 0.5,
    "halfLife": 365,
    "levelDays": 45,
-   "tdl": 16.32,
+   "tdl": 16.59,
    "tds": 16.38,
-   "avg": 16.35
+   "avg": 16.48
   },
   {
    "ridge": 0.5,
    "halfLife": 0,
    "levelDays": 45,
    "tdl": 16.76,
-   "tds": 16.23,
-   "avg": 16.5
+   "tds": 16.25,
+   "avg": 16.51
   },
   {
    "ridge": 0.5,
    "halfLife": 365,
    "levelDays": 0,
-   "tdl": 16.6,
+   "tdl": 16.92,
    "tds": 17.47,
-   "avg": 17.04
-  },
-  {
-   "ridge": 3,
-   "halfLife": 365,
-   "levelDays": 0,
-   "tdl": 16.6,
-   "tds": 17.99,
-   "avg": 17.3
+   "avg": 17.2
   },
   {
    "ridge": 0.5,
    "halfLife": 0,
    "levelDays": 0,
    "tdl": 16.73,
-   "tds": 17.95,
-   "avg": 17.34
+   "tds": 17.93,
+   "avg": 17.33
+  },
+  {
+   "ridge": 3,
+   "halfLife": 365,
+   "levelDays": 0,
+   "tdl": 16.96,
+   "tds": 18.16,
+   "avg": 17.56
   },
   {
    "ridge": 3,
    "halfLife": 0,
    "levelDays": 0,
-   "tdl": 16.53,
-   "tds": 18.22,
-   "avg": 17.38
+   "tdl": 16.72,
+   "tds": 18.52,
+   "avg": 17.62
   }
  ],
- "updated": "2026-11-22T22:47"
+ "updated": "2026-11-23T01:57"
 }
