@@ -26,7 +26,7 @@
    "ridge": 3,
    "halfLife": 0,
    "levelDays": 45,
-   "tdl": 16.46,
+   "tdl": 16.47,
    "tds": 16.24,
    "avg": 16.35
   },
@@ -34,7 +34,7 @@
    "ridge": 3,
    "halfLife": 365,
    "levelDays": 45,
-   "tdl": 16.44,
+   "tdl": 16.45,
    "tds": 16.46,
    "avg": 16.45
   },
@@ -43,7 +43,7 @@
    "halfLife": 365,
    "levelDays": 45,
    "tdl": 16.59,
-   "tds": 16.37,
+   "tds": 16.38,
    "avg": 16.48
   },
   {
@@ -51,16 +51,16 @@
    "halfLife": 0,
    "levelDays": 45,
    "tdl": 16.76,
-   "tds": 16.24,
-   "avg": 16.5
+   "tds": 16.25,
+   "avg": 16.51
   },
   {
    "ridge": 0.5,
    "halfLife": 365,
    "levelDays": 0,
-   "tdl": 16.92,
-   "tds": 17.46,
-   "avg": 17.19
+   "tdl": 16.93,
+   "tds": 17.47,
+   "avg": 17.2
   },
   {
    "ridge": 0.5,
@@ -83,9 +83,9 @@
    "halfLife": 0,
    "levelDays": 0,
    "tdl": 16.72,
-   "tds": 18.51,
+   "tds": 18.52,
    "avg": 17.62
   }
  ],
- "updated": "2026-11-26T03:42"
+ "updated": "2026-11-26T22:31"
 }
